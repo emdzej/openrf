@@ -62,6 +62,7 @@ export default defineConfig({
           text: "Internals",
           items: [
             { text: "Overview", link: "/internals/" },
+            { text: "Portable core", link: "/internals/portable-core" },
             { text: "Engine architecture", link: "/architecture" },
             { text: "Renderer", link: "/render" },
             { text: "Game simulation", link: "/game" },

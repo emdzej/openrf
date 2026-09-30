@@ -6,7 +6,7 @@ Guidance for coding agents working in this repository. Humans: see
 ## What this is
 
 OpenRF is a faithful, from-scratch reimplementation of **Return Fire** (Silent Software,
-Windows 95 edition, 1996) in C11 + SDL3. It is not an emulator or a wrapper: every subsystem is
+Windows 95 edition, 1996) in C11: a portable core plus an SDL3 platform backend. It is not an emulator or a wrapper: every subsystem is
 ported function by function from the original executable (`RFIRE.BIN` on the CD — the real
 game; `RFIRE.EXE` only picks a language DLL), in the same 16.16 fixed-point maths.
 
@@ -39,7 +39,7 @@ port* from the original.
 
 | Path | What |
 |---|---|
-| `src/` | Platform layer (`platform.c`, SDL3), asset loaders, `exe.c` (runtime PE tables), movies (`movie.c`, own Cinepak decoder `cinepak.c`), music director, sound mixer (`sfx.c`), HUD, bunker select UI, front end (`main.c`, `play.c`, `play_rules.c`, `endgame.c`), high scores |
+| `src/` | Portable core: app state machine (`app.c`), platform contract (`platform.h`, `keys.h`), file layer + ISO 9660 reader (`vfs.c`), audio mixer (`audio.c`), asset loaders, `exe.c` (runtime PE tables), movies (`movie.c`, own Cinepak decoder `cinepak.c`), music director, sound mixer (`sfx.c`), input mapping (`input.c`), HUD, bunker select UI, levels (`play.c`, `play_rules.c`, `endgame.c`), high scores. Backends: `platform_sdl.c` (SDL3 + `main()`), `vfs_host.c` (POSIX dirs / image files), `storage_file.c` |
 | `src/render/` | Cel rasteriser (`cel.c`, `ccb.c`), camera + world renderer (`view.c`), models (`models_data.c`, generated loader) |
 | `src/game/` | Simulation: objects, collision, shapes, vehicles, weapons, effects, AI (turret/drone/sub), rules (man/gate/flag/mine), fixed-point maths |
 | `tests/` | Headless tests that run the real engine code against the original data |
@@ -52,8 +52,16 @@ port* from the original.
 Everything at runtime comes from the user's CD. For development, extract it to `./cd`
 (see `docs/howto/extract-cd.md`) — it must contain `ART/`, `SOUND/`, `TITLE/`, `WORLDS/` and
 `RFIRE.BIN`. If `./cd` exists at configure time, the build symlinks it into the bundle as
-`Contents/Resources/data`. Asset paths go through `assets_path()`, which matches
-case-insensitively (the disc is upper case, the game's code mixed case).
+`Contents/Resources/data`. The app also runs straight from a disc image: pass a `.cue`, raw `.bin`
+or `.iso` as the first argument, or put `data.cue|.bin|.iso` in `Contents/Resources` (the user's image
+is `../Return Fire (Europe) (En,Fr,De,Es,It).cue`/`.bin`, MODE1/2352). Tests read `./cd` or
+`OPENRF_DATA=<dir|image>`.
+
+**All data access goes through `src/vfs.h`** (`vfs_read_all`, `vfs_open` + `vfs_read_at` for
+streaming, `vfs_exists`, `vfs_list`): no `fopen`/`opendir` in the core. Names are disc-relative and
+case-insensitive (the disc is upper case, the game's code mixed case). Backends: a host directory or an
+ISO 9660 image over a `VfsSource` ("read bytes at offset"; `vfs_host.c` backs it with a file, a gasm
+build with `asset_read_at`). `vfs_read_at` must stay safe to call from the audio thread.
 
 ## Build and test
 
@@ -74,6 +82,31 @@ Universal release build (what CI does): add `-DOPENRF_BUNDLED_SDL=ON
   byte-identical. Behaviour changes need a reason tied to the original.
 - For anything visible, run the app and look at a frame (below).
 
+## Portable core and platform contract
+
+Only the backends (`platform_sdl.c`, `vfs_host.c`, `storage_file.c`) may use platform APIs; CMake builds
+the rest as `openrf_core` without SDL on the include path. `src/platform.h` is the contract a backend
+implements (video, input incl. `plat_pad` with gasm button bits, `plat_ticks_ms`, audio lock, storage
+`plat_storage_*`, `plat_error`); the planned gasm (wasm) backend implements the same functions.
+The core also compiles for `wasm32-wasip1` (wasi-sdk in `~/Projects/my/gasm/tools/wasi-sdk`).
+Docs: `docs/internals/portable-core.md`.
+
+- **App loop** (`app.h`): `app_init`, `app_frame` (poll, step, repeat until a step presents), `app_exit`.
+  Intro, title, levels, end sequence, viewer are states; each step is one iteration of the old
+  blocking loop and returns `STEP_FRAME` (presented), `STEP_AGAIN` (state changed, nothing presented)
+  or `STEP_DONE`. Never add a blocking loop or call `plat_poll` yourself: add a state or sub-state.
+  Keep the number/order of presents and `plat_ticks_ms` reads when you touch a step, or the
+  `OPENRF_FIXED_STEP` screenshots change.
+- **Audio** (`audio.h`): one mixer, `audio_render(float *, frames)` at 44100 Hz stereo: music streamed
+  via `vfs_read_at` (range / loop / seamless / volume for `music.c`), movie PCM (22050 Hz, linearly
+  resampled), and `sfx_render` (unchanged; `sfx_test` output must stay byte-identical). The SDL backend
+  pulls it from one stream callback; state the mixer reads is changed under `audio_lock()`.
+- **Input** (`input.c`): keyboard binds plus pads (pad 0 = player 1, pad 1 = player 2); front-end
+  actions via `input_ui(UI_PLAY1 | UI_PLAY2 | UI_BACK | UI_SWAP)`. Key codes are `keys.h` (USB HID
+  usages = SDL scancodes). Mapping documented in `docs/guide/controls.md`.
+- **Storage**: high scores use `plat_storage_get/set("RFire_HS")`; `storage_file.c` keeps the file in
+  `~/Library/Application Support/Return Fire/` (`OPENRF_HS` overrides).
+
 ## Running the app unattended
 
 ```sh
@@ -89,9 +122,14 @@ sips -s format png /tmp/x.bmp --out /tmp/x.png
 | `OPENRF_FIXED_STEP=1` | Virtual 16 ms/frame clock, for reproducible frames (the normal clock is wall time) |
 | `OPENRF_DEMO=<mode>` | Scripted input: `1`, `fire`, `jeep`, `msv`, `heli`, `turret`, `drone`, `sub`, `rules`, `win`; with `--play2`: `2p`, `2pheli`, `2pwin`, `2pspectate` |
 | `OPENRF_SFX_LOG=1`, `OPENRF_CAM_H`, `OPENRF_HS`, `OPENRF_P1/P2` | Sound log, camera height, high-score file, 2P names |
+| `OPENRF_DATA=<dir\|image>` | Data root for the tests / `render_test` (the app takes it as `argv[1]`) |
 
 Options: `--skip-intro`, `--play`, `--play2`, `--level <n|path>`, `--viewer`.
-`tools/screenshots.sh` regenerates the docs screenshots (muted).
+`tools/screenshots.sh` regenerates the docs screenshots (muted). For refactors, capture the
+deterministic shots (title, select, drive, tank-fire, heli, turret, rules, win, 2p-drive,
+2p-spectate at the `screenshots.sh` timings, with `OPENRF_FIXED_STEP=1`) before and after and `cmp`
+them, with `cd` and with the disc image. Movie frames are not reproducible (video follows the audio
+device clock), and neither is the first intro still (a stray input edge can skip it).
 
 ## Reverse engineering
 
@@ -119,6 +157,12 @@ Options: `--skip-intro`, `--play`, `--play2`, `--level <n|path>`, `--viewer`.
 - **Paths with parentheses.** The dev checkout lives under `Return Fire (Europe) (…)`; CMake
   custom commands need `VERBATIM`, shell snippets need quoting.
 - **Fat binaries.** `otool -L` prints per-architecture header lines; filter indented lines only.
+- **One poll per step.** `plat_poll` runs before every state step, so edge-triggered input
+  (`plat_any_key_pressed`) is consumed at each state change, as the old nested loops did. A backend must
+  tolerate several polls per presented frame.
+- **Audio thread.** SDL pulls `audio_render` on its own thread with the stream lock held
+  (`plat_audio_lock`, recursive). Close/replace mixer resources (music file, PCM buffer) under the lock;
+  file reads from the callback must be positional (`pread`), never a shared `FILE *`.
 - **Homebrew SDL3** is built for the host macOS version, so local builds warn about the 11.0
   deployment target. Harmless; release builds use the bundled static SDL3.
 
@@ -137,8 +181,11 @@ it links only system libraries, signs it ad hoc and attaches the zip + SHA-256.
 
 ## Roadmap context
 
-- Windows and Linux builds: SDL3 covers the platform layer; `main.c`'s data-root lookup uses
-  macOS `_NSGetExecutablePath`.
+- Windows and Linux builds: SDL3 covers the platform layer; the data-root lookup in `platform_sdl.c`
+  uses macOS `_NSGetExecutablePath`, `vfs_host.c` uses POSIX (`pread`, `dirent`).
+- gasm backend (wasm guest, `~/Projects/my/gasm/spec/ABI.md`): implement `platform.h` over the `gasm`
+  imports, mount the disc asset with `vfs_mount_image` over `asset_read_at`, call `app_frame` from
+  `gasm_frame` and `audio_render(audio_frames_for_frame(...))` + `audio_push` once per frame.
 - Online two-player: deterministic lockstep (exchange input words, periodic state hashes) over
   the [swsrs](https://github.com/emdzej/swsrs) relay. Keep the simulation deterministic.
 

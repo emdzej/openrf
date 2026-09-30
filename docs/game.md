@@ -556,7 +556,7 @@ unused site (r = 0 and 1 both the first), SpawnMine at (cell·32 + 6 + RandRange
 first). The second pass places the remainder − 1 (the original's loop decrements before its exit test) and may
 reuse cells. "Campgrounds Of America" (VHCL 200) finds 6 sites: 12 mines.
 
-### End of game (src/endgame.c, play_rules.c, main.c)
+### End of game (src/endgame.c, play_rules.c, app.c)
 EndGame 0x40f380: game clock stop (the high-score time), fade out 1 s; State_EndOfGameSequence 0x40f050 with a
 winner: Mus_StartWinMusic (SFX stopped, 13 Win at 0xff), SetWinnerAndWinVideo 0x4370e0 = movie
 `0x4559e0[level]` {0,1,1,1,1,2,2,2,3,3} → TITLE/WIN1, WIN2, WIN3, WIN.STM; banner 0x455a08 `Ban{B,G}{L,H}`
@@ -564,7 +564,8 @@ winner: Mus_StartWinMusic (SFX stopped, 13 Win at 0xff), SetWinnerAndWinVideo 0x
 0x455a18), fade in 500 ms, wait for the win music to end, music off, the movie with the banner over every frame
 (pixel-doubled to 640×480), fade out 500 ms, back screen (Drums). No winner: music off, fade 1 s, back screen.
 State_BackScreen then calls **RecordHighScore 0x42d8b0**: 1 player, winner 0, a player name (here `$USER`):
-`~/Library/Application Support/Return Fire/RFire_HS` (OPENRF_HS overrides), each byte stored as
+storage key `RFire_HS` (`plat_storage_*`; the SDL build: `~/Library/Application Support/Return Fire/RFire_HS`,
+OPENRF_HS overrides), each byte stored as
 `(b ^ 0x5a) + "retufire"[offset & 7]`; header `{0x1c, "rfhs", n1P, 0x48, n2P, 0x50}`, 1P records
 `{u16 level+1 (0x7f custom map), map[33] (file base name), player[33], u32 ms}` sorted by level; an existing
 (level, map) record is replaced only by a faster time; 2P records follow unchanged.

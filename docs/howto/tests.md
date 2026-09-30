@@ -1,7 +1,9 @@
 # Run the tests
 
 The tests exercise the real engine code headlessly against the original data, so they need
-the game data in `./cd` (they cannot run in CI, which only compiles them).
+the game data in `./cd` (they cannot run in CI, which only compiles them). `OPENRF_DATA=<folder or
+image>` points them (and `render_test`) elsewhere, e.g. at the `.cue`, to check the disc-image reader:
+the output must be identical.
 
 ```sh
 cmake --build build -j

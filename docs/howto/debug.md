@@ -11,6 +11,8 @@ Environment variables understood by OpenRF:
 | `OPENRF_FIXED_STEP=1` | Replace the wall clock with a virtual one (16 ms per presented frame), so a run and its `OPENRF_SHOT` frame are reproducible (compare builds with `cmp`) |
 | `OPENRF_SFX_LOG=1` | Log sound-effect instances and voices |
 | `OPENRF_CAM_H=<n>` | Driving camera height (0 = 1.0× zoom) |
+| `OPENRF_HS=<file>` | High-score file (default `~/Library/Application Support/Return Fire/RFire_HS`) |
+| `OPENRF_DATA=<folder or image>` | Data for the tests and `render_test` (default `./cd`); the app takes it as its first argument |
 
 Example — the screenshot of a tank firing used on this site:
 

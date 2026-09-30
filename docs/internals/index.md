@@ -8,6 +8,7 @@ the 3DO's cel engine, drawing into an 8-bit DirectDraw surface, and the game log
 
 | Document | Contents |
 |---|---|
+| [Portable core](/internals/portable-core) | App state machine, platform contract, file layer and disc images, audio mixer |
 | [Engine architecture](/architecture) | Program flow, timing, input, sound and music, renderer overview, function index |
 | [Renderer](/render) | Projection, floor walk, 3D model format, depth sort, draw functions |
 | [Game simulation](/game) | Object system, collision, vehicles, weapons, AI, rules |
@@ -19,7 +20,7 @@ the 3DO's cel engine, drawing into an 8-bit DirectDraw surface, and the game log
 
 | Path | Contents |
 |---|---|
-| `src/` | Platform layer (SDL3), asset loaders, movies, music, sound, HUD, front end |
+| `src/` | Portable core: app state machine, file layer (`vfs.c`), audio mixer, asset loaders, movies, music, sound, HUD, front end; the SDL3 backend `platform_sdl.c` |
 | `src/render/` | Cel rasteriser, camera, world renderer, 3D models |
 | `src/game/` | Simulation: objects, collision, vehicles, weapons, effects, AI, rules |
 | `tools/` | Format decoders, table generators, reference renderer |

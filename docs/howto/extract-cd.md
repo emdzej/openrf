@@ -1,6 +1,8 @@
 # Extract the CD image
 
-OpenRF needs the files from the disc as a normal folder.
+OpenRF can read a `.cue`/`.bin` or `.iso` image directly ([Game data](/guide/game-data)), so
+extracting is optional. It is useful for development (the tests, `tools/*.py` and the reference
+renderer read `./cd`) or to look at the files.
 
 ## From a physical CD or a mounted image
 Copy the `ART`, `SOUND`, `TITLE` and `WORLDS` folders from the mounted volume.

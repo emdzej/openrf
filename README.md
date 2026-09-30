@@ -24,23 +24,19 @@ This produces `build/Return Fire.app`.
 
 ## Game data
 
-Extract the CD image so the directory contains `ART/`, `SOUND/`, `TITLE/`, `WORLDS/` and `RFIRE.BIN`
-(the original game program, on the root of the CD; OpenRF checks it is the supported build):
+OpenRF reads the CD directly from a **disc image** (`.cue` + `.bin` raw MODE1/2352, or `.iso`) or from an
+extracted folder containing `ART/`, `SOUND/`, `TITLE/`, `WORLDS/` and `RFIRE.BIN` (the original game program,
+on the root of the CD; OpenRF checks it is the supported build). Pass either as the first argument:
 
 ```sh
-# from the .bin/.cue (MODE1/2352): strip the 16-byte sector headers, then extract the ISO
-python3 -c "import sys;f=open(sys.argv[1],'rb');o=open('rf.iso','wb')
-while (s:=f.read(2352)): o.write(s[16:2064])" "Return Fire (Europe) (En,Fr,De,Es,It).bin"
-7z x rf.iso -ocd
-```
-
-If `./cd` exists at build time, the build links it into the bundle as
-`Return Fire.app/Contents/Resources/data`, so the app can be opened from Finder. Otherwise the game
-looks for `./cd` next to the bundle, or takes a path as the first argument:
-
-```sh
+"build/Return Fire.app/Contents/MacOS/Return Fire" "Return Fire (Europe) (En,Fr,De,Es,It).cue"
 "build/Return Fire.app/Contents/MacOS/Return Fire" cd
 ```
+
+or put it in the bundle as `Return Fire.app/Contents/Resources/data` (a folder) or `data.cue`/`data.bin`/`data.iso`,
+or next to the bundle as `cd` (folder or `cd.cue`/`cd.bin`/`cd.iso`). If `./cd` exists at build time, the build
+links it into the bundle as `Contents/Resources/data`. The tests and tools read `./cd` (see
+`docs/howto/extract-cd.md`), or `OPENRF_DATA=<folder or image>`.
 
 Options: `--skip-intro`, `--play` (straight into the `--level` map, level 1 by default), `--play2` (straight into
 a 2-player game: "Driving School" or the `--level` 2-player map), `--level <n | path>` (n = 1..100 one-player
@@ -70,12 +66,15 @@ and pressing H docks. In a 2-player game the screen is split (player 1 left, blu
 Alt+3 swaps the two keyboard layouts between the players (Swap Sides). A player left with no vehicles while the
 other still has jeeps watches the skull screen until the game ends; with no jeeps on either side it is a draw.
 Esc leaves the level. Alt+Enter toggles fullscreen, M mutes the game. Map viewer: arrows scroll, `[` `]` change map, Esc returns.
+Gamepads work too (first pad player 1, second player 2): d-pad/stick, A/B/X = H/J/K, L/R = Q/E, START = F2 on the
+title / launch in the bunker, SELECT = swap sides, START+SELECT = Esc (see `docs/guide/controls.md`).
 
 ## Status
 
 | Area | State |
 |---|---|
 | Intro stills + STM movies (own Cinepak decoder) | done |
+| Disc images (ISO 9660 in .iso / raw .bin / .cue), gamepads | done |
 | Title screen, music director (SCORE.WAV track table) | done |
 | ART.CAR sprites, TRANS.TBL, RFM maps | done |
 | Perspective world renderer, 3D models (pixel-identical to tools/view.py) | done |
@@ -88,7 +87,9 @@ Esc leaves the level. Alt+Enter toggles fullscreen, M mutes the game. Map viewer
 
 ## Layout
 
-- `src/` — engine (C11 + SDL3). Original function addresses are cited in comments.
+- `src/` — engine (C11): a portable core (frame-driven app state machine, file layer, audio mixer, game) and the
+  SDL3 backend `platform_sdl.c`, the only file that uses SDL (contract: `src/platform.h`). Original function
+  addresses are cited in comments.
 - `tools/` — Python decoders/reference renderers for each format.
 - `docs/` — reverse-engineering notes: `car.md`, `rfm.md`, `stm.md`, `architecture.md`, …
 - `re/` — Ghidra scripts and decompiler dumps (local reference only).
