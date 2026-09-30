@@ -2,9 +2,11 @@
 
 Releases are built by GitHub Actions (`.github/workflows/release.yml`):
 
+Tags are plain semantic versions, without a `v` prefix:
+
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag 0.1.0
+git push origin 0.1.0
 ```
 
 The workflow builds a universal `Return Fire.app` with SDL3 statically linked, checks that
