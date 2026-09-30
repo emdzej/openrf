@@ -1,0 +1,32 @@
+name: CI
+
+# Builds the app and every test binary on each push / PR.
+# The tests need the original game data (not redistributable), so CI only
+# compiles them; run them locally with the extracted CD in ./cd.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: install dependencies
+        run: brew install sdl3
+
+      - name: configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: build (app + tests)
+        run: cmake --build build -j
+
+      - name: check Python tools compile
+        run: python3 -m py_compile tools/*.py

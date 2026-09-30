@@ -1,0 +1,23 @@
+# Original game data and anything derived from it (copyrighted — never commit)
+/cd/
+/rfire_game.exe
+/re/
+/out/
+*.iso
+*.bin
+*.cue
+
+# Build output
+/build/
+/build-*/
+
+# Docs site
+node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+
+# OS / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
