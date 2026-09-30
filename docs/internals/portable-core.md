@@ -3,9 +3,8 @@
 OpenRF is split into a **portable core** (everything in `src/`, `src/render/` and `src/game/` except the
 backends) and **platform backends**. The core includes no platform headers: CMake builds it as the
 `openrf_core` object library without SDL on the include path, so a platform dependency cannot creep in.
-The SDL3 backend is the only one today; the same core is meant to run as a
-[gasm](https://github.com/emdzej/gasm) guest (a wasm module driven by a host at a fixed frame rate,
-with no filesystem).
+Backends: SDL3 (the macOS app) and [gasm](https://github.com/emdzej/gasm) (`openrf.wasm`, a wasm module
+driven by a host at a fixed frame rate, with no filesystem; see [Running on gasm](/guide/gasm)).
 
 | File | Role |
 |---|---|
@@ -16,6 +15,7 @@ with no filesystem).
 | `src/input.c`, `src/keys.h` | Keyboard and pad mapping onto the game's input word |
 | `src/platform_sdl.c` | SDL3 backend and `main()` |
 | `src/vfs_host.c`, `src/storage_file.c` | POSIX file backends (SDL build and tests) |
+| `src/platform_gasm.c` | gasm backend and the module's exports (`gasm_init`, `gasm_frame`, `gasm_exit`) |
 
 ## Frame-driven app loop
 
@@ -91,9 +91,34 @@ carried, e.g. 735 per frame at 60 Hz, 705 or 706 at 62.5 Hz). Before, SDL mixed 
 resampled the movie audio itself, so movie sound differs slightly in resampling detail; music and SFX
 samples are the same.
 
+## The gasm backend
+
+`platform_gasm.c` implements the contract over the gasm imports (ABI v0):
+
+- **Lifecycle**: `gasm_init` sets the frame rate to 62.5 Hz (one original 16 ms tick per frame) and the
+  audio format to 44100 Hz stereo, mounts the data, turns launch params into the option list and the
+  environment the core reads (`demo` -> `OPENRF_DEMO`, `p1` -> `USER`/`OPENRF_P1`, ...), then calls
+  `app_init`; a failure is logged and `gasm_init` returns 1. `gasm_frame` is one `app_frame` followed by
+  `audio_render` + `audio_push` of `audio_frames_for_frame(125, 2)` frames (705 or 706). When the app
+  quits (`app_frame` false) it calls `app_exit` and WASI `proc_exit(0)`; `gasm_exit` (the player closed
+  the runner) calls `app_exit`.
+- **Video**: the 640x480 8-bit framebuffer goes through its palette into RGBA for `video_present`; movie
+  frames are presented at their own 320x240 (the runner scales both to the same 4:3 output).
+- **Time**: `plat_ticks_ms` is 16 ms per presented frame, exactly the SDL build's `OPENRF_FIXED_STEP=1`
+  clock, so both builds produce the same frames at the same frame number. Nothing reads the runner's
+  clock, and the mixer runs on the frame, so movies (slaved to the audio played) are reproducible too.
+- **Input**: `input_pad(0..3)` read at each `plat_poll` (stable within a frame; the "any button" edge
+  fires at the first poll of the frame that sees a new button). `plat_key_down` is always false.
+- **Data**: the asset `cd` (or `rom`) as a disc image through `vfs_mount_image` over `asset_read_at`,
+  else the disc's files as assets named by their paths (`--asset-dir`): names are tried as spelled and
+  upper-cased. The ABI cannot enumerate assets, so `vfs_list` in that mode probes the map names the
+  viewer looks for.
+- **Storage**: `gasm:storage` get/set, key `RFire_HS`.
+
 ## Storage and input
 
 High scores (`highscore.c`, the original's `RFire_HS` format) go through `plat_storage_*` with the key
-`RFire_HS`; the SDL build keeps the file in `~/Library/Application Support/Return Fire/`. Pads are
+`RFire_HS`; the SDL build keeps the file in `~/Library/Application Support/Return Fire/`, the gasm build in the
+runner's storage. Pads are
 mapped in `input.c` ([Controls](/guide/controls)): pad 1 is player 1, pad 2 player 2; the SDL backend
 feeds real gamepads through the same path.

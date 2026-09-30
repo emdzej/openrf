@@ -13,7 +13,8 @@ and plays like the original, but runs natively on modern computers.
 
 ## What you need
 
-- A Mac running macOS 11 or newer (Apple Silicon or Intel). Windows and Linux are
+- A Mac running macOS 11 or newer (Apple Silicon or Intel), or any system with the
+  [gasm](./gasm) runtime (macOS, Linux, Windows). Native Windows and Linux builds are
   [planned](#platforms).
 - Your own copy of **Return Fire for Windows 95** (the CD, or a BIN/CUE or ISO image of it).
   OpenRF does not include any of the original game's files.
@@ -34,12 +35,13 @@ and plays like the original, but runs natively on modern computers.
 
 ## Platforms
 
-OpenRF is written in portable C11 on top of SDL3, which already runs on all major desktop
-systems; nearly all platform-specific code lives in one small layer.
+OpenRF is written in portable C11; all platform-specific code lives in one small layer, with two
+implementations: SDL3 (the native app) and gasm (a WebAssembly module).
 
 | Platform | State |
 |---|---|
 | macOS 11+ (universal: Apple Silicon and Intel) | Available |
+| gasm runtime (`openrf.wasm`: macOS, Linux, Windows via `gasm-run`) | Available, see [Running on gasm](./gasm) |
 | Windows | Planned |
 | Linux | Planned |
 

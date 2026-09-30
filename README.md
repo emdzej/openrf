@@ -6,8 +6,9 @@
 ![OpenRF](docs/public/screenshots/tank-fire.png)
 
 A from-scratch, portable reimplementation of **Return Fire** (Silent Software, Windows 95
-edition, 1996) in C11 and SDL3. macOS (universal: Apple Silicon and Intel) is supported today;
-Windows and Linux are planned. It contains no original code, assets or data: it reads the data files, and
+edition, 1996) in C11. It runs as a native macOS app (SDL3, universal: Apple Silicon and Intel) and as
+`openrf.wasm`, a module for the [gasm](https://gasm.emdzej.pl) WebAssembly game runtime (macOS, Linux,
+Windows); native Windows and Linux builds are planned. It contains no original code, assets or data: it reads the data files, and
 the tables of the original game program (`RFIRE.BIN`: 3D models, object and sound tables), directly
 from your own copy of the game CD.
 
@@ -21,6 +22,19 @@ cmake --build build -j
 ```
 
 This produces `build/Return Fire.app`.
+
+The gasm module (needs wasi-sdk and gasm's C SDK; `tools/fetch-gasm-sdk.sh` downloads both into `.deps/`):
+
+```sh
+tools/fetch-gasm-sdk.sh
+cmake -S . -B build-gasm -DOPENRF_PLATFORM=gasm -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=.deps/gasm-c-sdk/cmake/gasm-toolchain.cmake -DWASI_SDK_PREFIX="$PWD/.deps/wasi-sdk"
+cmake --build build-gasm -j      # -> build-gasm/openrf.wasm
+gasm-run build-gasm/openrf.wasm --asset "cd=Return Fire (Europe) (En,Fr,De,Es,It).bin"
+```
+
+Options become launch params there (`--param skip_intro=1`, `play`, `play2`, `level`, `demo`, `p1`, `p2`):
+see [docs/guide/gasm.md](docs/guide/gasm.md).
 
 ## Game data
 
@@ -75,6 +89,7 @@ title / launch in the bunker, SELECT = swap sides, START+SELECT = Esc (see `docs
 |---|---|
 | Intro stills + STM movies (own Cinepak decoder) | done |
 | Disc images (ISO 9660 in .iso / raw .bin / .cue), gamepads | done |
+| gasm backend (`openrf.wasm`, deterministic, pixel-identical to the fixed-step app) | done |
 | Title screen, music director (SCORE.WAV track table) | done |
 | ART.CAR sprites, TRANS.TBL, RFM maps | done |
 | Perspective world renderer, 3D models (pixel-identical to tools/view.py) | done |
@@ -87,8 +102,9 @@ title / launch in the bunker, SELECT = swap sides, START+SELECT = Esc (see `docs
 
 ## Layout
 
-- `src/` — engine (C11): a portable core (frame-driven app state machine, file layer, audio mixer, game) and the
-  SDL3 backend `platform_sdl.c`, the only file that uses SDL (contract: `src/platform.h`). Original function
+- `src/` — engine (C11): a portable core (frame-driven app state machine, file layer, audio mixer, game) and two
+  backends for the contract in `src/platform.h`: `platform_sdl.c` (SDL3, the only file that uses SDL) and
+  `platform_gasm.c` (gasm). Original function
   addresses are cited in comments.
 - `tools/` — Python decoders/reference renderers for each format.
 - `docs/` — reverse-engineering notes: `car.md`, `rfm.md`, `stm.md`, `architecture.md`, …

@@ -39,6 +39,7 @@ export default defineConfig({
             { text: "Playing", link: "/guide/playing" },
             { text: "Vehicles", link: "/guide/vehicles" },
             { text: "Controls", link: "/guide/controls" },
+            { text: "Running on gasm", link: "/guide/gasm" },
             { text: "Troubleshooting", link: "/guide/troubleshooting" },
           ],
         },

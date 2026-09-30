@@ -59,5 +59,5 @@ PlayStation pad circle, cross, triangle, square.
 | Any button | Skip the intro stills and movies | any key |
 
 The map viewer takes the d-pad to scroll and L / R to change map. The same mapping serves hosts that
-only offer virtual pads (the planned [gasm](https://github.com/emdzej/gasm) build: its pads 0 and 1
-are pads 1 and 2 here, with the same button bits).
+only offer virtual pads (the [gasm](./gasm) build: its pads 0 and 1 are pads 1 and 2 here, with the
+same button bits; `gasm-run` maps two keyboard layouts onto them).

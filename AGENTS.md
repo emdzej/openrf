@@ -6,9 +6,10 @@ Guidance for coding agents working in this repository. Humans: see
 ## What this is
 
 OpenRF is a faithful, from-scratch reimplementation of **Return Fire** (Silent Software,
-Windows 95 edition, 1996) in C11: a portable core plus an SDL3 platform backend. It is not an emulator or a wrapper: every subsystem is
+Windows 95 edition, 1996) in C11: a portable core plus SDL3 and gasm platform backends. It is not an emulator or a wrapper: every subsystem is
 ported function by function from the original executable (`RFIRE.BIN` on the CD — the real
-game; `RFIRE.EXE` only picks a language DLL), in the same 16.16 fixed-point maths.
+game; `RFIRE.EXE` only picks a language DLL), in the same 16.16 fixed-point maths. The gasm backend builds `openrf.wasm`, a guest for the
+[gasm](https://github.com/emdzej/gasm) WebAssembly game runtime.
 
 The Windows game is itself a port of the 3DO original: the renderer is a software emulation of
 the 3DO cel engine drawing into an 8-bit DirectDraw surface. OpenRF keeps that structure.
@@ -39,13 +40,13 @@ port* from the original.
 
 | Path | What |
 |---|---|
-| `src/` | Portable core: app state machine (`app.c`), platform contract (`platform.h`, `keys.h`), file layer + ISO 9660 reader (`vfs.c`), audio mixer (`audio.c`), asset loaders, `exe.c` (runtime PE tables), movies (`movie.c`, own Cinepak decoder `cinepak.c`), music director, sound mixer (`sfx.c`), input mapping (`input.c`), HUD, bunker select UI, levels (`play.c`, `play_rules.c`, `endgame.c`), high scores. Backends: `platform_sdl.c` (SDL3 + `main()`), `vfs_host.c` (POSIX dirs / image files), `storage_file.c` |
+| `src/` | Portable core: app state machine (`app.c`), platform contract (`platform.h`, `keys.h`), file layer + ISO 9660 reader (`vfs.c`), audio mixer (`audio.c`), asset loaders, `exe.c` (runtime PE tables), movies (`movie.c`, own Cinepak decoder `cinepak.c`), music director, sound mixer (`sfx.c`), input mapping (`input.c`), HUD, bunker select UI, levels (`play.c`, `play_rules.c`, `endgame.c`), high scores. Backends: `platform_sdl.c` (SDL3 + `main()`), `vfs_host.c` (POSIX dirs / image files), `storage_file.c`; `platform_gasm.c` (gasm guest: exports, imports, params) |
 | `src/render/` | Cel rasteriser (`cel.c`, `ccb.c`), camera + world renderer (`view.c`), models (`models_data.c`, generated loader) |
 | `src/game/` | Simulation: objects, collision, shapes, vehicles, weapons, effects, AI (turret/drone/sub), rules (man/gate/flag/mine), fixed-point maths |
 | `tests/` | Headless tests that run the real engine code against the original data |
 | `tools/` | Python: format decoders (`car.py`, `rfm.py`, `stm.py`, `models.py`), reference renderer (`view.py`), `render_cmp.py`, table-descriptor generators, `rfexe.py` (PE reader), `screenshots.sh`, `ghidra/` scripts |
 | `docs/` | VitePress site → openrf.emdzej.pl. User guide, how-tos, and the reverse-engineering notes (`architecture.md`, `render.md`, `game.md`, `car.md`, `rfm.md`, `stm.md`). `CONTEXT.md` is an agent briefing, excluded from the site |
-| `.github/workflows/` | `ci.yml` (build app + tests), `release.yml` (universal .app on tag), `pages.yml` (docs) |
+| `.github/workflows/` | `ci.yml` (build app + tests, `openrf.wasm`), `release.yml` (universal .app + `openrf-<version>.wasm` on tag), `pages.yml` (docs) |
 
 ## Game data
 
@@ -73,6 +74,16 @@ for t in sim_test combat_test sfx_test ai_test rules_test twoplayer_test; do ./b
 python3 tools/render_cmp.py        # C renderer vs tools/view.py: must be 0 mismatches in all scenes
 ```
 
+gasm module (`build-gasm/openrf.wasm`; `tools/fetch-gasm-sdk.sh` puts wasi-sdk and gasm's C SDK in `.deps/`, or
+use a gasm checkout: `$GASM/sdk/c/cmake/gasm-toolchain.cmake`, `-DWASI_SDK_PREFIX=$GASM/tools/wasi-sdk`):
+
+```sh
+tools/fetch-gasm-sdk.sh
+cmake -S . -B build-gasm -DOPENRF_PLATFORM=gasm -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=.deps/gasm-c-sdk/cmake/gasm-toolchain.cmake -DWASI_SDK_PREFIX="$PWD/.deps/wasi-sdk"
+cmake --build build-gasm -j
+```
+
 Universal release build (what CI does): add `-DOPENRF_BUNDLED_SDL=ON
 -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"`; SDL3 is fetched and linked statically.
 
@@ -87,8 +98,7 @@ Universal release build (what CI does): add `-DOPENRF_BUNDLED_SDL=ON
 Only the backends (`platform_sdl.c`, `vfs_host.c`, `storage_file.c`) may use platform APIs; CMake builds
 the rest as `openrf_core` without SDL on the include path. `src/platform.h` is the contract a backend
 implements (video, input incl. `plat_pad` with gasm button bits, `plat_ticks_ms`, audio lock, storage
-`plat_storage_*`, `plat_error`); the planned gasm (wasm) backend implements the same functions.
-The core also compiles for `wasm32-wasip1` (wasi-sdk in `~/Projects/my/gasm/tools/wasi-sdk`).
+`plat_storage_*`, `plat_error`); `platform_gasm.c` implements the same functions over the gasm imports.
 Docs: `docs/internals/portable-core.md`.
 
 - **App loop** (`app.h`): `app_init`, `app_frame` (poll, step, repeat until a step presents), `app_exit`.
@@ -130,6 +140,37 @@ deterministic shots (title, select, drive, tank-fire, heli, turret, rules, win, 
 2p-spectate at the `screenshots.sh` timings, with `OPENRF_FIXED_STEP=1`) before and after and `cmp`
 them, with `cd` and with the disc image. Movie frames are not reproducible (video follows the audio
 device clock), and neither is the first intro still (a stray input edge can skip it).
+
+## gasm backend
+
+`src/platform_gasm.c` (the only file that includes `gasm.h`; ABI in `~/Projects/my/gasm/spec/ABI.md`):
+62.5 Hz (`set_frame_rate`), one `app_frame` per `gasm_frame`, then `audio_frames_for_frame(125, 2)` frames
+of `audio_render` pushed with `audio_push`; `plat_ticks_ms` = 16 ms per present (the SDL `OPENRF_FIXED_STEP`
+clock); pads from `input_pad(0..3)`, no keyboard; storage `gasm:storage` (`RFire_HS`); errors via `log` and
+`gasm_init` returning 1; app quit = `app_exit` + `proc_exit(0)`. Data: asset `cd` (or `rom`) = disc image
+(`vfs_mount_image` over `asset_read_at`), else the disc files as assets (`--asset-dir`, names tried as
+spelled and upper-cased; `vfs_list` probes `RFMAPnnn.RFM`). Launch params replace argv/env: `skip_intro`,
+`play`, `play2`, `level`, `viewer`, `demo`, `p1`, `p2`, `cam_h`, `sfx_log` (put into wasi-libc's `setenv`
+for the core's `getenv`). Docs: `docs/guide/gasm.md`.
+
+**Verification** (headless, deterministic; frame N = the SDL fixed-step frame at `OPENRF_SHOT_MS=16*(N-1)`):
+
+```sh
+RUN=~/Projects/my/gasm/runners/native/target/release/gasm-run
+IMG="../Return Fire (Europe) (En,Fr,De,Es,It).bin"
+$RUN build-gasm/openrf.wasm --asset "cd=$IMG" --headless 689 --screenshot /tmp/g.png \
+  --param skip_intro=1 --param play=1 --param demo=fire     # = OPENRF_DEMO=fire OPENRF_SHOT_MS=11000
+node ~/Projects/my/gasm/runners/web/headless.mjs build-gasm/openrf.wasm --asset "cd=$IMG" --headless 689 \
+  --param skip_intro=1 --param play=1 --param demo=fire     # same video_fnv32/audio_fnv32 lines
+$RUN build-gasm/openrf.wasm --asset-dir cd --headless 689 ...  # folder mode: same hashes
+```
+
+Expected for that run: `video_fnv32=d014dcfb audio_fnv32=f1520dc1 audio_frames=486158`. For a gasm
+change: the `screenshots.sh` cases compared against the SDL build (`OPENRF_FIXED_STEP=1`, `OPENRF_HS`
+pointing at a missing file, `USER="Player 1"`) must be pixel-identical, and gasm-run twice and the Node
+runner must print identical hashes. Unlike the SDL build, movie frames are reproducible on gasm (the mixer
+runs on the frame). `--input "FROM-TO:BTN+BTN,..."` scripts pad 1 (frames from 0). Don't open a gasm-run
+window in unattended runs (use `--headless`).
 
 ## Reverse engineering
 
@@ -183,13 +224,12 @@ it links only system libraries, signs it ad hoc and attaches the zip + SHA-256.
 
 - Windows and Linux builds: SDL3 covers the platform layer; the data-root lookup in `platform_sdl.c`
   uses macOS `_NSGetExecutablePath`, `vfs_host.c` uses POSIX (`pread`, `dirent`).
-- gasm backend (wasm guest, `~/Projects/my/gasm/spec/ABI.md`): implement `platform.h` over the `gasm`
-  imports, mount the disc asset with `vfs_mount_image` over `asset_read_at`, call `app_frame` from
-  `gasm_frame` and `audio_render(audio_frames_for_frame(...))` + `audio_push` once per frame.
+- gasm in the browser: OpenRF's own page importing the CD folder into OPFS and running `openrf.wasm` in
+  gasm's Worker mode (needs gasm's web asset providers).
 - Online two-player: deterministic lockstep (exchange input words, periodic state hashes) over
   the [swsrs](https://github.com/emdzej/swsrs) relay. Keep the simulation deterministic.
 
 ## Commits
 
-Imperative subject, body explaining why when non-obvious. Don't commit `cd/`, `re/`, `out/`,
+Imperative subject, body explaining why when non-obvious. Don't commit `cd/`, `re/`, `out/`, `build-gasm/`, `.deps/`,
 `build/` or `__pycache__/`.
