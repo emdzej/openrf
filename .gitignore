@@ -29,3 +29,6 @@ __pycache__/
 
 # Downloaded toolchains (tools/fetch-gasm-sdk.sh)
 /.deps/
+
+# Play page runtime, copied from npm by docs/scripts/vendor-web.sh
+docs/public/play/vendor/

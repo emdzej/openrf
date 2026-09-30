@@ -66,8 +66,10 @@ jobs:
       - name: build VitePress site
         working-directory: docs
         run: |
+          scripts/vendor-web.sh
           pnpm build
           test -f .vitepress/dist/play/openrf.wasm
+          test -f .vitepress/dist/play/vendor/gasm/gasm-worker.js
 
       - uses: actions/configure-pages@v6
 

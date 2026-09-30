@@ -9,10 +9,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 WASI_SDK_VERSION=${WASI_SDK_VERSION:-34}
 # The one place the gasm SDK version is set (CI, release and Pages builds all call this script).
-# 0.2.0 is the latest release. Its C SDK (gasm.h, toolchain) is identical to 0.3.0's, so it builds the
-# same openrf.wasm; *running* it from a folder (gasm-run --asset-dir) and the keyboard layouts need a
-# gasm 0.3.0 runner. Move this to 0.3.0 once it is released.
-GASM_VERSION=${GASM_VERSION:-0.2.0}
+# Keep it in step with @emdzej/gasm-host in docs/package.json (the browser player's runner).
+# 0.3.0 is the minimum runner for folders (--asset-dir), file-backed assets, Worker mode and keymaps.
+GASM_VERSION=${GASM_VERSION:-0.3.0}
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)  PLAT=arm64-macos ;;
   Darwin-x86_64) PLAT=x86_64-macos ;;
