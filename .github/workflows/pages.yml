@@ -3,12 +3,19 @@ name: Pages
 # Builds and deploys the VitePress site to GitHub Pages.
 # The site is hosted at https://openrf.emdzej.pl/ — the custom-domain
 # CNAME ships in docs/public/CNAME.
+#
+# The browser player (docs/public/play/) needs openrf.wasm, so the module is built first (the same
+# steps as the CI wasm job) and copied in by docs/scripts/copy-wasm.sh. Only the engine goes into the
+# site: the game data always comes from the player's own CD, in their browser.
 
 on:
   push:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'tools/fetch-gasm-sdk.sh'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -24,13 +31,23 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: docs
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # lastUpdated timestamps
+
+      # SDK version: GASM_VERSION in tools/fetch-gasm-sdk.sh (0.2.0's C SDK, unchanged in 0.3.0).
+      - name: fetch wasi-sdk and the gasm C SDK
+        run: tools/fetch-gasm-sdk.sh
+
+      - name: build openrf.wasm
+        run: |
+          cmake -S . -B build-gasm -DOPENRF_PLATFORM=gasm -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=.deps/gasm-c-sdk/cmake/gasm-toolchain.cmake -DWASI_SDK_PREFIX="$PWD/.deps/wasi-sdk"
+          cmake --build build-gasm -j
+
+      - name: copy openrf.wasm into the play page
+        run: docs/scripts/copy-wasm.sh build-gasm/openrf.wasm
 
       - uses: pnpm/action-setup@v6
         with:
@@ -43,10 +60,14 @@ jobs:
           cache-dependency-path: docs/pnpm-lock.yaml
 
       - name: install
+        working-directory: docs
         run: pnpm install --frozen-lockfile
 
       - name: build VitePress site
-        run: pnpm build
+        working-directory: docs
+        run: |
+          pnpm build
+          test -f .vitepress/dist/play/openrf.wasm
 
       - uses: actions/configure-pages@v6
 

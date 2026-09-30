@@ -7,6 +7,8 @@ export default defineConfig({
   lastUpdated: true,
   srcExclude: ["CONTEXT.md", "README.md", "AGENTS.md"],
   sitemap: { hostname: "https://openrf.emdzej.pl" },
+  // The browser player is a static page in public/play/, not a Markdown page.
+  ignoreDeadLinks: [/^\/play\//],
 
   head: [
     ["link", { rel: "icon", href: "/favicon.png", type: "image/png" }],
@@ -26,6 +28,8 @@ export default defineConfig({
       { text: "How-tos", link: "/howto/build-from-source", activeMatch: "/howto/" },
       { text: "Internals", link: "/internals/", activeMatch: "/(internals|architecture|render|game|car|rfm|stm)" },
       { text: "Gallery", link: "/gallery" },
+      // A static app in docs/public/play/: target _self makes it a full page load, not a VitePress route.
+      { text: "Play", link: "/play/", target: "_self" },
     ],
 
     sidebar: {
