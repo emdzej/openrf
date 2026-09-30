@@ -59,6 +59,20 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/cd")
     COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_SOURCE_DIR}/cd" "$<TARGET_BUNDLE_CONTENT_DIR:openrf>/Resources/data"
     VERBATIM)
 endif()
+# App icon: the site's skull favicon, scaled up (tools/make-icns.sh; skipped without iconutil/python3).
+find_program(ICONUTIL iconutil)
+find_program(PYTHON3 python3)
+if(APPLE AND ICONUTIL AND PYTHON3)
+  set(OPENRF_ICNS "${CMAKE_BINARY_DIR}/openrf.icns")
+  add_custom_command(OUTPUT "${OPENRF_ICNS}"
+    COMMAND "${CMAKE_SOURCE_DIR}/tools/make-icns.sh" "${OPENRF_ICNS}"
+    DEPENDS "${CMAKE_SOURCE_DIR}/docs/public/favicon.png" "${CMAKE_SOURCE_DIR}/tools/icon.py"
+            "${CMAKE_SOURCE_DIR}/tools/make-icns.sh"
+    VERBATIM)
+  target_sources(openrf PRIVATE "${OPENRF_ICNS}")
+  set_source_files_properties("${OPENRF_ICNS}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+  set_target_properties(openrf PROPERTIES MACOSX_BUNDLE_ICON_FILE openrf.icns)
+endif()
 set_target_properties(openrf PROPERTIES
   OUTPUT_NAME "Return Fire"
   MACOSX_BUNDLE_GUI_IDENTIFIER org.openrf.returnfire
