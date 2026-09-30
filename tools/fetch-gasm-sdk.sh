@@ -28,7 +28,7 @@ if [ ! -x .deps/wasi-sdk/bin/clang ]; then
   echo "fetching $url"
   curl -fsSL "$url" | tar xz -C .deps
   rm -rf .deps/wasi-sdk && mv ".deps/wasi-sdk-$WASI_SDK_VERSION.0-$PLAT" .deps/wasi-sdk
-  [ "$(uname -s)" = Darwin ] && xattr -dr com.apple.quarantine .deps/wasi-sdk 2>/dev/null || true
+  if [ "$(uname -s)" = Darwin ]; then xattr -dr com.apple.quarantine .deps/wasi-sdk 2>/dev/null || true; fi
 fi
 if [ ! -f .deps/gasm-c-sdk/include/gasm.h ]; then
   url=https://github.com/emdzej/gasm/releases/download/$GASM_VERSION/gasm-c-sdk-$GASM_VERSION.zip

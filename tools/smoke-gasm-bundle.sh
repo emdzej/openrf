@@ -27,7 +27,7 @@ if [ -d "$DIR/Return Fire (gasm).app" ]; then
 else
   RUN="$DIR/gasm-run"; WASM="$DIR/openrf.wasm"; L="$DIR/openrf.sh"
 fi
-[ -x "$RUN" ] && [ -s "$WASM" ] && [ -x "$L" ] || fail "gasm-run, openrf.wasm or the launcher missing"
+if [ ! -x "$RUN" ] || [ ! -s "$WASM" ] || [ ! -x "$L" ]; then fail "gasm-run, openrf.wasm or the launcher missing"; fi
 grep -q "gasm-run [0-9]" "$DIR/README.txt" || fail "README does not name the gasm version"
 
 # 1. No data: a clean error from the game, not a crash.
@@ -51,8 +51,9 @@ OPENRF_CD="$T/rf.ISO" "$L" --dry-run | grep -q "cd=" || fail "dry run with an im
 if OPENRF_CD="$T/rf.cue" "$L" --dry-run 2>/dev/null; then fail ".cue accepted"; fi
 if OPENRF_CD="$T" "$L" --dry-run 2>/dev/null; then fail "a folder without RFIRE.BIN accepted"; fi
 if "$L" --dry-run </dev/null >/dev/null 2>&1; then fail "no CD, dry run: should exit non-zero"; fi
-[ ! -e "$XDG_CONFIG_HOME/openrf/cd-location" ] && [ ! -e "$HOME/Library/Application Support/OpenRF/cd-location" ] ||
+if [ -e "$XDG_CONFIG_HOME/openrf/cd-location" ] || [ -e "$HOME/Library/Application Support/OpenRF/cd-location" ]; then
   fail "a dry run saved the CD location"
+fi
 
 # 3. Optional: the real game with the user's CD.
 if [ -n "${OPENRF_SMOKE_CD:-}" ]; then
