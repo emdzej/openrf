@@ -3,6 +3,7 @@
 #include "render.h"
 #include "../world.h"
 #include "../assets.h"
+#include "../vfs.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -28,7 +29,7 @@ static uint32_t set_static(uint32_t cell, int t, int hp, int team)   /* SetCellS
 bool cellmap_load(CellMap *m, const char *rel)
 {
     size_t sz;
-    uint8_t *d = file_read_all(rel, &sz);
+    uint8_t *d = vfs_read_all(rel, &sz);
     if (!d) return false;
     memset(m, 0, sizeof *m);
     if (sz < 0x50 || memcmp(d, "WRL", 4)) { free(d); return false; }

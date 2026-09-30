@@ -128,25 +128,43 @@ void play_rules_frame(void)
     }
 }
 
-bool play_rules_finish(const char *rfm_rel, bool quit)
+static bool finishing;
+static GameResult result;
+
+static void reset_hooks(void)
 {
     game_hooks.end_game = NULL;
     rules_hooks.flag_camera = NULL;
     g_view[0] = g_view[1] = NULL;
-    if (quit) return false;
-    if (G.winner == -2) return true;                               /* left with Esc */
+}
+
+void play_rules_finish_begin(const char *rfm_rel)
+{
+    reset_hooks();
+    finishing = false;
+    if (G.winner == -2) return;                                    /* left with Esc */
     play_outcome.winner = G.winner;
-    GameResult r = { G.winner, G.level, G.nplayers, play_outcome.time_ms, rfm_rel };
-    fprintf(stderr, "game over: winner %d, level %d, %u.%03u s\n", r.winner, r.level + 1, r.time_ms / 1000, r.time_ms % 1000);
-    if (!endgame_fade_out(1000)) return false;                     /* EndGame: SetFadeTarget(0, 1000) */
-    if (!endgame_sequence(&r)) return false;
-    if (r.nplayers == 2 && highscore_record(&r)) {                 /* State_BackScreen: RecordHighScore */
+    result = (GameResult){ G.winner, G.level, G.nplayers, play_outcome.time_ms, rfm_rel };
+    const GameResult *r = &result;
+    fprintf(stderr, "game over: winner %d, level %d, %u.%03u s\n", r->winner, r->level + 1, r->time_ms / 1000, r->time_ms % 1000);
+    endgame_begin(r);                                              /* EndGame fade, State_EndOfGameSequence */
+    finishing = true;
+}
+
+Step play_rules_finish_step(void)
+{
+    if (!finishing) return STEP_DONE;
+    Step s = endgame_step();
+    if (s != STEP_DONE) return s;
+    finishing = false;
+    const GameResult *r = &result;
+    if (r->nplayers == 2 && highscore_record(r)) {                 /* State_BackScreen: RecordHighScore */
         HighScore2P hs[64];
         int n = highscore_list2(hs, 64);
         fprintf(stderr, "2-player scores (%s):\n", highscore_path());
         for (int i = 0; i < n && i < 64; i++)
             fprintf(stderr, "  %-16s %3u  %-16s %3u  draws %u\n", hs[i].name[0], hs[i].wins[0], hs[i].name[1], hs[i].wins[1], hs[i].draws);
-    } else if (r.nplayers == 1 && highscore_record(&r)) {
+    } else if (r->nplayers == 1 && highscore_record(r)) {
         HighScore1P hs[64];
         int n = highscore_list(hs, 64);
         fprintf(stderr, "high scores (%s):\n", highscore_path());
@@ -154,5 +172,12 @@ bool play_rules_finish(const char *rfm_rel, bool quit)
             fprintf(stderr, "  level %2d  %-12s %-16s %u.%03u s\n", hs[i].level, hs[i].map, hs[i].player,
                     hs[i].time_ms / 1000, hs[i].time_ms % 1000);
     }
-    return true;
+    return STEP_DONE;
+}
+
+void play_rules_cancel(void)
+{
+    reset_hooks();
+    if (finishing) endgame_cancel();
+    finishing = false;
 }

@@ -1,5 +1,6 @@
 /* App glue of the soldiers / gates / flag / end-of-game port (src/game/rules.h) for the play loop. */
 #pragma once
+#include "app.h"
 #include "render/render.h"
 #include "game/game.h"
 
@@ -11,8 +12,12 @@ void play_rules_collect(Obj *o, RenderObj *r);
 /* After game_frame: the Flag Discovery / Flag Pickup part of Mus_Director 0x41d730 (2 players also: both
    in the bunker -> 14 Bunker at 0x68, DAT_00480e9c). */
 void play_rules_frame(void);
-/* After the loop: EndGame fade, win sequence, high score. Returns false if the app should quit. */
-bool play_rules_finish(const char *rfm_rel, bool quit);
+/* After the loop: EndGame fade, win sequence, high score (nothing if the level was left with Esc). Step
+   until STEP_DONE; rfm_rel must stay valid until then. */
+void play_rules_finish_begin(const char *rfm_rel);
+Step play_rules_finish_step(void);
+/* Quitting the app mid-level or mid-sequence. */
+void play_rules_cancel(void);
 
 /* Result of the last play_run (for the title-screen level progression). */
 typedef struct { int winner; uint32_t time_ms; int level; int nplayers; } PlayOutcome;

@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "exe.h"
+#include "vfs_host.h"
 
 static int fails;
 #define CHECK(c, ...) do { if (!(c)) { fails++; printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
@@ -273,7 +274,7 @@ static void scripted(const char *out)
 
 int main(int argc, char **argv)
 {
-    assets_set_root(argc > 1 ? argv[1] : "cd");
+    if (argc > 1) vfs_mount_path(argv[1]); else vfs_mount_default();
     if (!exe_load()) { fprintf(stderr, "%s\n", exe_error()); return 1; }   /* tables from RFIRE.BIN */
     const char *out = argc > 2 ? argv[2] : "out/sfx/test.wav";
     char dir[1024];

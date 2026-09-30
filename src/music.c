@@ -1,6 +1,5 @@
 #include "music.h"
-#include "assets.h"
-#include "platform.h"
+#include "audio.h"
 #include "exe.h"
 #include <stdio.h>
 #include <string.h>
@@ -53,9 +52,9 @@ static float vol = 1, vol_target = 1;   /* 0x444 per 16 ms tick on a 0..0x7fff s
 static void start_track(int t)
 {
     const Track *k = &tracks[t];
-    plat_music_play(assets_path(k->file), k->start, k->end, k->alt, !(k->mode & M_ONESHOT));
+    audio_music_play(k->file, k->start, k->end, k->alt, !(k->mode & M_ONESHOT));
     vol = vol_target = 1;
-    plat_music_set_volume(vol);
+    audio_music_set_volume(vol);
 }
 
 void music_init(void) { cur = prev = MUS_SILENCE; pending = MUS_SILENCE - 1; cur_prio = 0; }
@@ -81,7 +80,7 @@ void music_owner_changed(int owner)
 void music_set_enabled(bool on)
 {
     enabled = on;
-    if (!on && cur >= 0 && !(tracks[cur].flags & 1)) { plat_music_stop(); cur = MUS_SILENCE; }
+    if (!on && cur >= 0 && !(tracks[cur].flags & 1)) { audio_music_stop(); cur = MUS_SILENCE; }
 }
 
 void music_service(void)
@@ -95,7 +94,7 @@ void music_service(void)
             int tr = transition(cur, to);
             if (tr == T_SEAMLESS) {
                 const Track *k = &tracks[to];
-                plat_music_set_range(UINT32_MAX, k->end, k->alt, !(k->mode & M_ONESHOT));
+                audio_music_set_range(UINT32_MAX, k->end, k->alt, !(k->mode & M_ONESHOT));
             } else if (tr == T_FADE_RESTART && cur >= 0 && vol > 0) {
                 vol_target = 0;          /* start after the fade completes */
                 goto fade;
@@ -112,15 +111,15 @@ fade:
         const float step = (float)0x444 / 0x7fff;
         vol = vol < vol_target ? (vol + step > vol_target ? vol_target : vol + step)
                                : (vol - step < vol_target ? vol_target : vol - step);
-        plat_music_set_volume(vol);
+        audio_music_set_volume(vol);
         if (vol == 0 && pending >= 0) { start_track(pending); prev = cur; cur = pending; pending = MUS_SILENCE - 1; }
-        else if (vol == 0 && cur == MUS_SILENCE) plat_music_stop();
+        else if (vol == 0 && cur == MUS_SILENCE) audio_music_stop();
     }
     /* Mus_OnTrackEnd: one-shots fall back to the previous track, or the bunker theme. */
-    if (cur >= 0 && pending < MUS_SILENCE && plat_music_ended()) {
+    if (cur >= 0 && pending < MUS_SILENCE && audio_music_ended()) {
         int ended = cur;
         cur_prio = 0;
-        if (ended == MUS_WIN) { plat_music_stop(); cur = MUS_SILENCE; }
+        if (ended == MUS_WIN) { audio_music_stop(); cur = MUS_SILENCE; }
         else if (prev >= 0 && !(tracks[prev].mode & M_ONESHOT)) music_request(prev, 100, 0);
         else music_request(MUS_BUNKER, 0x40, 0);
     }

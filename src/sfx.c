@@ -13,6 +13,7 @@
    - Loop markers are unused; looping instances loop the whole buffer. */
 #include "sfx.h"
 #include "assets.h"
+#include "vfs.h"
 #include "game/object.h"
 #include "game/vehicle.h"
 #include "game/fixmath.h"
@@ -655,7 +656,7 @@ static uint32_t rd32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | 
 static bool load_wav(const char *rel, SampleData *out)    /* Wav_LoadFile 0x4079f0 (RIFF WAVE) */
 {
     size_t n;
-    uint8_t *d = file_read_all(rel, &n);
+    uint8_t *d = vfs_read_all(rel, &n);
     if (!d) return false;
     bool ok = false;
     if (n >= 12 && !memcmp(d, "RIFF", 4) && !memcmp(d + 8, "WAVE", 4)) {

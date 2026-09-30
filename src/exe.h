@@ -4,7 +4,7 @@
    RFIRE.BIN at start-up. The generated *_tables.c / models_data.c files contain only addresses,
    counts and types, plus the loader code that fills the C structures from the mapped image.
 
-   Usage: exe_load() once after assets_set_root() (it runs every registered table loader), then
+   Usage: exe_load() once after the data is mounted (vfs.h) (it runs every registered table loader), then
    exe_ptr()/exe_u32()/... by virtual address. */
 #pragma once
 #include <stdint.h>
@@ -16,11 +16,9 @@
 #define EXE_SIZE       431616u            /* the supported build (Return Fire for Windows 95, 1996) */
 #define EXE_CRC32      0x64c49a1bu        /* CRC-32 (IEEE) of the whole file */
 
-/* Loads EXE_FILE from the data root (assets_path), checks size + CRC-32, maps the sections and runs
+/* Loads EXE_FILE from the mounted data (vfs_read_all), checks size + CRC-32, maps the sections and runs
    the registered table loaders. Idempotent. On failure returns false and exe_error() explains why. */
 bool exe_load(void);
-/* Same, from an explicit file path. */
-bool exe_load_file(const char *path);
 const char *exe_error(void);
 bool exe_loaded(void);
 

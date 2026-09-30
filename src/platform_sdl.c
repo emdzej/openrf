@@ -1,8 +1,29 @@
+/* SDL3 platform backend (platform.h): window, 8-bit framebuffer presentation, keyboard and gamepads,
+   one audio stream pulling the portable mixer (audio.c), the data-root search and main(). The only file
+   that includes SDL. Storage: storage_file.c; data files: vfs_host.c. */
 #include "platform.h"
+#include "app.h"
+#include "audio.h"
+#include "vfs_host.h"
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __APPLE__
+#include <libgen.h>
+#include <mach-o/dyld.h>
+#endif
+
+/* keys.h values are SDL scancodes. */
+_Static_assert(KEY_A == SDL_SCANCODE_A && KEY_1 == SDL_SCANCODE_1 && KEY_ESCAPE == SDL_SCANCODE_ESCAPE &&
+               KEY_F2 == SDL_SCANCODE_F2 && KEY_RIGHTBRACKET == SDL_SCANCODE_RIGHTBRACKET &&
+               KEY_INSERT == SDL_SCANCODE_INSERT && KEY_DELETE == SDL_SCANCODE_DELETE && KEY_UP == SDL_SCANCODE_UP &&
+               KEY_KP_MINUS == SDL_SCANCODE_KP_MINUS && KEY_KP_ENTER == SDL_SCANCODE_KP_ENTER &&
+               KEY_KP_9 == SDL_SCANCODE_KP_9 && KEY_KP_0 == SDL_SCANCODE_KP_0 && KEY_LCTRL == SDL_SCANCODE_LCTRL &&
+               KEY_RALT == SDL_SCANCODE_RALT && KEY_RGUI == SDL_SCANCODE_RGUI && KEY_COUNT == SDL_SCANCODE_COUNT,
+               "keys.h must match SDL scancodes");
 
 static SDL_Window *win;
 static SDL_Renderer *ren;
@@ -10,14 +31,31 @@ static SDL_Texture *tex;
 static Framebuffer fb;
 static uint32_t *rgba;
 static bool key_pressed_edge;
-
 static SDL_AudioDeviceID audio_dev;
-#define MAX_SOUNDS 128
-#define MAX_VOICES 16
-typedef struct { SDL_AudioSpec spec; uint8_t *buf; uint32_t len; } Sound;
-static Sound sounds[MAX_SOUNDS];
-static int nsounds;
-static SDL_AudioStream *voices[MAX_VOICES];
+static SDL_AudioStream *audio_stream;
+
+/* ------------------------------------------------------------------ audio */
+
+/* The mixer is pulled here, on SDL's audio thread, with the stream locked (= plat_audio_lock). */
+static void SDLCALL audio_cb(void *ud, SDL_AudioStream *st, int additional, int total)
+{
+    float buf[1024 * 2];
+    (void)ud; (void)total;
+    while (additional > 0) {
+        int frames = additional / (int)(sizeof(float) * 2);
+        if (frames <= 0) frames = 1;
+        if (frames > 1024) frames = 1024;
+        audio_render(buf, frames);
+        SDL_PutAudioStreamData(st, buf, frames * (int)sizeof(float) * 2);
+        additional -= frames * (int)sizeof(float) * 2;
+    }
+}
+
+void plat_audio_lock(void) { if (audio_stream) SDL_LockAudioStream(audio_stream); }
+void plat_audio_unlock(void) { if (audio_stream) SDL_UnlockAudioStream(audio_stream); }
+
+/* ------------------------------------------------------------------ lifecycle */
+
 bool plat_init(const char *title, int w, int h)
 {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
@@ -38,21 +76,26 @@ bool plat_init(const char *title, int w, int h)
     fb.pixels = calloc((size_t)w * h, 1);
     rgba = calloc((size_t)w * h, 4);
 
-    SDL_AudioSpec spec = { SDL_AUDIO_S16, 2, 44100 };
+    SDL_AudioSpec spec = { SDL_AUDIO_S16, 2, AUDIO_RATE };
     audio_dev = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec);
     if (!audio_dev) fprintf(stderr, "audio: %s\n", SDL_GetError());
     /* OPENRF_MUTE=1: mix as usual but output silence (unattended test runs). */
     const char *mute = SDL_getenv("OPENRF_MUTE");
     if (audio_dev && mute && *mute && *mute != '0') SDL_SetAudioDeviceGain(audio_dev, 0.0f);
+    if (audio_dev) {
+        SDL_AudioSpec mix = { SDL_AUDIO_F32, AUDIO_CHANNELS, AUDIO_RATE };
+        audio_stream = SDL_CreateAudioStream(&mix, NULL);
+        if (audio_stream) {
+            SDL_SetAudioStreamGetCallback(audio_stream, audio_cb, NULL);
+            SDL_BindAudioStream(audio_dev, audio_stream);
+        }
+    }
     return true;
 }
 
 void plat_shutdown(void)
 {
-    plat_music_stop();
-    plat_sfx_close();
-    for (int i = 0; i < MAX_VOICES; i++) if (voices[i]) SDL_DestroyAudioStream(voices[i]);
-    for (int i = 0; i < nsounds; i++) SDL_free(sounds[i].buf);
+    if (audio_stream) { SDL_DestroyAudioStream(audio_stream); audio_stream = NULL; }
     if (audio_dev) SDL_CloseAudioDevice(audio_dev);
     SDL_DestroyTexture(tex);
     SDL_DestroyRenderer(ren);
@@ -60,6 +103,13 @@ void plat_shutdown(void)
     free(fb.pixels); free(rgba);
     SDL_Quit();
 }
+
+void plat_error(const char *title, const char *msg)
+{
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title, msg, NULL);
+}
+
+/* ------------------------------------------------------------------ video */
 
 Framebuffer *plat_fb(void) { return &fb; }
 
@@ -125,41 +175,26 @@ void plat_present_rgb(const uint32_t *px, int w, int h)
     SDL_RenderPresent(ren);
 }
 
-static SDL_AudioStream *pcm;
-static uint64_t pcm_pushed;
-static int pcm_bytes_per_sec;
+/* ------------------------------------------------------------------ input */
 
-bool plat_pcm_open(int freq, int channels, int bits)
+/* Gamepads in connection order = virtual pads 0..3. */
+#define MAX_PADS 4
+static SDL_Gamepad *pads[MAX_PADS];
+
+static void pad_added(SDL_JoystickID id)
 {
-    plat_pcm_close();
-    SDL_AudioSpec spec = { bits == 8 ? SDL_AUDIO_U8 : SDL_AUDIO_S16LE, channels, freq };
-    pcm = SDL_CreateAudioStream(&spec, NULL);
-    if (!pcm) return false;
-    pcm_pushed = 0;
-    pcm_bytes_per_sec = freq * channels * (bits / 8);
-    SDL_BindAudioStream(audio_dev, pcm);
-    return true;
+    for (int i = 0; i < MAX_PADS; i++)
+        if (!pads[i]) {
+            pads[i] = SDL_OpenGamepad(id);
+            if (pads[i]) fprintf(stderr, "gamepad %d: %s\n", i + 1, SDL_GetGamepadName(pads[i]));
+            return;
+        }
 }
 
-void plat_pcm_push(const void *data, int bytes)
+static void pad_removed(SDL_JoystickID id)
 {
-    if (!pcm) return;
-    SDL_PutAudioStreamData(pcm, data, bytes);
-    pcm_pushed += (uint64_t)bytes;
-}
-
-double plat_pcm_played_seconds(void)
-{
-    if (!pcm) return 0;
-    int queued = SDL_GetAudioStreamQueued(pcm);
-    return (double)(pcm_pushed - (uint64_t)(queued > 0 ? queued : 0)) / pcm_bytes_per_sec;
-}
-
-bool plat_pcm_drained(void) { return !pcm || SDL_GetAudioStreamQueued(pcm) == 0; }
-
-void plat_pcm_close(void)
-{
-    if (pcm) { SDL_DestroyAudioStream(pcm); pcm = NULL; }
+    for (int i = 0; i < MAX_PADS; i++)
+        if (pads[i] && SDL_GetGamepadID(pads[i]) == id) { SDL_CloseGamepad(pads[i]); pads[i] = NULL; }
 }
 
 bool plat_poll(void)
@@ -177,6 +212,9 @@ bool plat_poll(void)
                 key_pressed_edge = true;
         }
         if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN) key_pressed_edge = true;
+        if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) key_pressed_edge = true;
+        if (e.type == SDL_EVENT_GAMEPAD_ADDED) pad_added(e.gdevice.which);
+        if (e.type == SDL_EVENT_GAMEPAD_REMOVED) pad_removed(e.gdevice.which);
     }
     return true;
 }
@@ -184,170 +222,95 @@ bool plat_poll(void)
 bool plat_key_down(int sc)
 {
     const bool *ks = SDL_GetKeyboardState(NULL);
-    return ks[sc];
+    return sc > 0 && sc < SDL_SCANCODE_COUNT && ks[sc];
 }
 
 bool plat_any_key_pressed(void) { return key_pressed_edge; }
+
+/* SDL's positional face buttons onto the gasm/SNES layout (A east, B south, X north, Y west); the left
+   stick doubles the d-pad. */
+uint32_t plat_pad(int player)
+{
+    if (player < 0 || player >= MAX_PADS || !pads[player]) return 0;
+    SDL_Gamepad *g = pads[player];
+    static const struct { SDL_GamepadButton b; uint32_t bit; } map[] = {
+        { SDL_GAMEPAD_BUTTON_EAST, PAD_A }, { SDL_GAMEPAD_BUTTON_SOUTH, PAD_B }, { SDL_GAMEPAD_BUTTON_NORTH, PAD_X },
+        { SDL_GAMEPAD_BUTTON_WEST, PAD_Y }, { SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, PAD_L },
+        { SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, PAD_R }, { SDL_GAMEPAD_BUTTON_BACK, PAD_SELECT },
+        { SDL_GAMEPAD_BUTTON_START, PAD_START }, { SDL_GAMEPAD_BUTTON_DPAD_UP, PAD_UP },
+        { SDL_GAMEPAD_BUTTON_DPAD_DOWN, PAD_DOWN }, { SDL_GAMEPAD_BUTTON_DPAD_LEFT, PAD_LEFT },
+        { SDL_GAMEPAD_BUTTON_DPAD_RIGHT, PAD_RIGHT },
+    };
+    uint32_t bits = 0;
+    for (size_t i = 0; i < sizeof map / sizeof *map; i++) if (SDL_GetGamepadButton(g, map[i].b)) bits |= map[i].bit;
+    const int dead = 16000;
+    int x = SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_LEFTX), y = SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_LEFTY);
+    if (x < -dead) bits |= PAD_LEFT;
+    if (x > dead) bits |= PAD_RIGHT;
+    if (y < -dead) bits |= PAD_UP;
+    if (y > dead) bits |= PAD_DOWN;
+    if (SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > dead) bits |= PAD_L;
+    if (SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > dead) bits |= PAD_R;
+    return bits;
+}
+
 uint64_t plat_ticks_ms(void) { return fixed_step_on() ? virt_ms : SDL_GetTicks(); }
-void plat_sleep_ms(uint32_t ms) { SDL_Delay(ms); }
 
-int plat_sound_load(const char *path)
+/* ------------------------------------------------------------------ main */
+
+/* Data root: a path given on the command line (directory or disc image), else next to the executable
+   (inside the .app: Contents/Resources/data, or data.bin / data.cue / data.iso there), then ./cd. */
+static bool try_root(const char *path)
 {
-    if (nsounds >= MAX_SOUNDS) return -1;
-    Sound *s = &sounds[nsounds];
-    if (!SDL_LoadWAV(path, &s->spec, &s->buf, &s->len)) {
-        fprintf(stderr, "wav %s: %s\n", path, SDL_GetError());
-        return -1;
+    return vfs_mount_path(path) && vfs_exists("ART/ART.CAR");
+}
+
+static bool try_root_or_image(const char *base)
+{
+    static const char *const ext[] = { "", ".cue", ".bin", ".iso" };
+    char p[PATH_MAX + 8];
+    for (size_t i = 0; i < sizeof ext / sizeof *ext; i++) {
+        snprintf(p, sizeof p, "%s%s", base, ext[i]);
+        if (try_root(p)) return true;
     }
-    return nsounds++;
+    return false;
 }
 
-void plat_sound_play(int id)
+static bool find_data_root(int argc, char **argv)
 {
-    if (!audio_dev || id < 0 || id >= nsounds) return;
-    Sound *s = &sounds[id];
-    /* Reuse an idle voice with a matching source format, else replace one. */
-    int slot = -1;
-    for (int i = 0; i < MAX_VOICES && slot < 0; i++)
-        if (!voices[i] || SDL_GetAudioStreamQueued(voices[i]) == 0) slot = i;
-    if (slot < 0) slot = 0;
-    if (voices[slot]) SDL_DestroyAudioStream(voices[slot]);
-    voices[slot] = SDL_CreateAudioStream(&s->spec, NULL);
-    SDL_BindAudioStream(audio_dev, voices[slot]);
-    SDL_PutAudioStreamData(voices[slot], s->buf, (int)s->len);
-    SDL_FlushAudioStream(voices[slot]);
-}
-
-/* Music: stream a byte range of a WAV's data chunk on demand (SCORE.WAV is 223 MB).
-   Ranges can be changed while playing to continue seamlessly (MusTrans1_ContinueSeamless). */
-typedef struct {
-    FILE *f;
-    uint32_t data_off, data_len;
-    uint32_t pos, end, loop_start;
-    bool loop, ended;
-} MusicSrc;
-static MusicSrc msrc;
-static SDL_AudioStream *music;
-
-static void SDLCALL music_cb(void *ud, SDL_AudioStream *st, int additional, int total)
-{
-    uint8_t buf[16384];
-    while (additional > 0 && msrc.f && !msrc.ended) {
-        if (msrc.pos >= msrc.end) {
-            if (!msrc.loop) { msrc.ended = true; return; }
-            msrc.pos = msrc.loop_start;
-        }
-        uint32_t n = msrc.end - msrc.pos;
-        if (n > sizeof buf) n = sizeof buf;
-        if ((int)n > additional) n = (uint32_t)((additional + 3) & ~3);
-        if (n > msrc.end - msrc.pos) n = msrc.end - msrc.pos;
-        fseek(msrc.f, (long)(msrc.data_off + msrc.pos), SEEK_SET);
-        size_t got = fread(buf, 1, n, msrc.f);
-        if (got == 0) { msrc.ended = true; return; }
-        SDL_PutAudioStreamData(st, buf, (int)got);
-        msrc.pos += (uint32_t)got;
-        additional -= (int)got;
-    }
-}
-
-bool plat_music_play(const char *path, uint32_t start, uint32_t end, uint32_t loop_start, bool loop)
-{
-    plat_music_stop();
-    FILE *f = fopen(path, "rb");
-    if (!f) return false;
-    uint8_t hdr[12];
-    if (fread(hdr, 1, 12, f) != 12 || memcmp(hdr, "RIFF", 4) || memcmp(hdr + 8, "WAVE", 4)) { fclose(f); return false; }
-    SDL_AudioSpec spec = {0};
-    uint32_t data_off = 0, data_len = 0;
-    for (;;) {
-        uint8_t ch[8];
-        if (fread(ch, 1, 8, f) != 8) break;
-        uint32_t sz = ch[4] | ch[5] << 8 | ch[6] << 16 | (uint32_t)ch[7] << 24;
-        if (!memcmp(ch, "fmt ", 4)) {
-            uint8_t fmt[16];
-            if (fread(fmt, 1, 16, f) != 16) break;
-            spec.channels = fmt[2] | fmt[3] << 8;
-            spec.freq = fmt[4] | fmt[5] << 8 | fmt[6] << 16 | fmt[7] << 24;
-            spec.format = (fmt[14] | fmt[15] << 8) == 8 ? SDL_AUDIO_U8 : SDL_AUDIO_S16LE;
-            fseek(f, (long)(sz - 16 + (sz & 1)), SEEK_CUR);
-        } else if (!memcmp(ch, "data", 4)) {
-            data_off = (uint32_t)ftell(f);
-            data_len = sz;
-            break;
-        } else {
-            fseek(f, (long)(sz + (sz & 1)), SEEK_CUR);
+    if (argc > 1 && argv[1][0] != '-') return try_root(argv[1]);
+    const char *tries[] = { "../Resources/data", "../../../cd", "../../../../cd", "cd", "../cd" };
+#ifdef __APPLE__
+    char exe[PATH_MAX], cand[PATH_MAX];
+    uint32_t n = sizeof exe;
+    if (_NSGetExecutablePath(exe, &n) == 0) {
+        char *dir = dirname(exe);
+        for (size_t i = 0; i < sizeof tries / sizeof *tries; i++) {
+            snprintf(cand, sizeof cand, "%s/%s", dir, tries[i]);
+            if (try_root_or_image(cand)) return true;
         }
     }
-    if (!data_off || !spec.freq) { fclose(f); return false; }
-    msrc = (MusicSrc){ f, data_off, data_len, 0, 0, 0, false, false };
-    music = SDL_CreateAudioStream(&spec, NULL);
-    SDL_SetAudioStreamGetCallback(music, music_cb, NULL);
-    plat_music_set_range(start, end, loop_start, loop);
-    SDL_BindAudioStream(audio_dev, music);
-    return true;
+#else
+    for (size_t i = 0; i < sizeof tries / sizeof *tries; i++) if (try_root_or_image(tries[i])) return true;
+#endif
+    return try_root_or_image("cd");
 }
 
-void plat_music_set_range(uint32_t pos, uint32_t end, uint32_t loop_start, bool loop)
+int main(int argc, char **argv)
 {
-    if (!music) return;
-    SDL_LockAudioStream(music);
-    if (end == 0 || end > msrc.data_len) end = msrc.data_len;
-    if (pos != UINT32_MAX) msrc.pos = pos > end ? end : pos & ~3u;
-    msrc.end = end;
-    msrc.loop_start = loop_start & ~3u;
-    msrc.loop = loop;
-    msrc.ended = false;
-    SDL_UnlockAudioStream(music);
-}
-
-bool plat_music_ended(void)
-{
-    if (!music) return true;
-    return msrc.ended && SDL_GetAudioStreamQueued(music) == 0;
-}
-
-void plat_music_set_volume(float v) { if (music) SDL_SetAudioStreamGain(music, v); }
-
-void plat_music_stop(void)
-{
-    if (music) { SDL_DestroyAudioStream(music); music = NULL; }
-    if (msrc.f) { fclose(msrc.f); msrc.f = NULL; }
-}
-
-
-/* Sound-effect mixer stream (sfx.c renders into it from the audio thread). */
-static SDL_AudioStream *sfx_stream;
-static PlatMixFn sfx_fn;
-
-static void SDLCALL sfx_cb(void *ud, SDL_AudioStream *st, int additional, int total)
-{
-    int16_t buf[2048 * 2];
-    (void)ud; (void)total;
-    while (additional > 0) {
-        int frames = additional / 4;
-        if (frames <= 0) frames = 1;
-        if (frames > 2048) frames = 2048;
-        sfx_fn(buf, frames);
-        SDL_PutAudioStreamData(st, buf, frames * 4);
-        additional -= frames * 4;
+    if (!find_data_root(argc, argv)) {
+        const char *msg = "Return Fire game data was not found.\n\n"
+                          "Put the extracted CD (the folder containing RFIRE.BIN, ART, SOUND, TITLE and WORLDS) at "
+                          "Return Fire.app/Contents/Resources/data, or a disc image of it at "
+                          "Contents/Resources/data.cue (with its .bin), data.bin or data.iso, or pass the folder or "
+                          "image as an argument.";
+        fprintf(stderr, "%s\n", msg);
+        plat_error("Return Fire", msg);
+        return 1;
     }
-}
-
-bool plat_sfx_open(PlatMixFn fn)
-{
-    if (!audio_dev || sfx_stream) return sfx_stream != NULL;
-    SDL_AudioSpec spec = { SDL_AUDIO_S16, 2, 44100 };
-    sfx_stream = SDL_CreateAudioStream(&spec, NULL);
-    if (!sfx_stream) return false;
-    sfx_fn = fn;
-    SDL_SetAudioStreamGetCallback(sfx_stream, sfx_cb, NULL);
-    SDL_BindAudioStream(audio_dev, sfx_stream);
-    return true;
-}
-
-void plat_sfx_lock(void) { if (sfx_stream) SDL_LockAudioStream(sfx_stream); }
-void plat_sfx_unlock(void) { if (sfx_stream) SDL_UnlockAudioStream(sfx_stream); }
-void plat_sfx_close(void)
-{
-    if (sfx_stream) { SDL_DestroyAudioStream(sfx_stream); sfx_stream = NULL; }
+    fprintf(stderr, "data: %s\n", vfs_describe());
+    if (!app_init(argc, argv)) return 1;
+    while (app_frame()) {}
+    app_exit();
+    return 0;
 }

@@ -1,31 +1,23 @@
 /* High-score table RFire_HS (RecordHighScore 0x42d8b0, HighScoresDlgProc 0x42ea20): 0x1c-byte header
    {u32 0x1c, "rfhs", u32 n1P, u32 0x48, u32 n2P, u32 0x50}, 1-player records {u16 level (0x7f = custom map),
    char map[33], char player[33], u32 ms} sorted by level, then the 2-player records. Byte i of the file is
-   stored as (plain ^ 0x5a) + "retufire"[i & 7]. Kept in ~/Library/Application Support/Return Fire/. */
+   stored as (plain ^ 0x5a) + "retufire"[i & 7]. Kept under the storage key RFire_HS (plat_storage_*: on the
+   SDL build ~/Library/Application Support/Return Fire/RFire_HS). */
 #include "endgame.h"
 #include "exe.h"
+#include "platform.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 enum { HS_HDR = 0x1c, HS_REC1 = 0x48, HS_REC2 = 0x50 };
 static char hs_key[8];                          /* file key, 8 bytes at 0x44c4f0 in RFIRE.BIN */
 static void hs_tables_load(void) { exe_read(hs_key, 0x44c4f0, sizeof hs_key); }
 EXE_LOADER(hs_tables_load)
 
-const char *highscore_path(void)
-{
-    static char path[1024];
-    const char *e = getenv("OPENRF_HS");
-    if (e && *e) return e;
-    const char *home = getenv("HOME");
-    snprintf(path, sizeof path, "%s/Library/Application Support/Return Fire", home ? home : ".");
-    mkdir(path, 0755);
-    size_t n = strlen(path);
-    snprintf(path + n, sizeof path - n, "/RFire_HS");
-    return path;
-}
+#define HS_KEY "RFire_HS"                        /* storage key (the original's file name) */
+
+const char *highscore_path(void) { return plat_storage_location(HS_KEY); }
 
 static uint32_t rd32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
 static void wr32(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24); }
@@ -33,18 +25,11 @@ static void wr32(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v
 /* The decoded file (byte i stored as (plain ^ 0x5a) + key[i & 7]); a fresh header when missing/invalid. */
 static uint8_t *hs_load(size_t *size)
 {
-    FILE *f = fopen(highscore_path(), "rb");
     uint8_t *b = NULL;
     size_t n = 0;
-    if (f) {
-        fseek(f, 0, SEEK_END);
-        long l = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        if (l > 0) {
-            b = malloc((size_t)l);
-            n = fread(b, 1, (size_t)l, f);
-        }
-        fclose(f);
+    int len = plat_storage_get(HS_KEY, NULL, 0);
+    if (len > 0 && (b = malloc((size_t)len)) != NULL) {
+        n = plat_storage_get(HS_KEY, b, len) == len ? (size_t)len : 0;
         for (size_t i = 0; i < n; i++) b[i] = (uint8_t)((uint8_t)(b[i] - (uint8_t)hs_key[i & 7]) ^ 0x5a);
         if (n < HS_HDR || rd32(b) != HS_HDR || memcmp(b + 4, "rfhs", 5) || rd32(b + 0x10) != HS_REC1 ||
             rd32(b + 0x18) != HS_REC2 || HS_HDR + (size_t)rd32(b + 0xc) * HS_REC1 + (size_t)rd32(b + 0x14) * HS_REC2 > n) {
@@ -68,9 +53,7 @@ static bool hs_save(const uint8_t *plain, size_t n)
 {
     uint8_t *e = malloc(n ? n : 1);
     for (size_t i = 0; i < n; i++) e[i] = (uint8_t)((plain[i] ^ 0x5a) + (uint8_t)hs_key[i & 7]);
-    FILE *f = fopen(highscore_path(), "wb");
-    bool ok = f && fwrite(e, 1, n, f) == n;
-    if (f) fclose(f);
+    bool ok = plat_storage_set(HS_KEY, e, (int)n);
     free(e);
     return ok;
 }

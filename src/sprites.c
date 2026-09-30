@@ -1,5 +1,6 @@
 #include "sprites.h"
 #include "assets.h"
+#include "vfs.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,7 +20,7 @@ bool sprites_load(SpriteBank *b, const char *rel)
 {
     size_t sz;
     memset(b, 0, sizeof *b);
-    b->data = file_read_all(rel, &sz);
+    b->data = vfs_read_all(rel, &sz);
     if (!b->data || sz < HDR || memcmp(b->data, "CCBA", 4)) return false;
     b->size = sz;
     b->count = (int)rd32(b->data + 8);
@@ -77,7 +78,7 @@ static void build_trans(SpriteBank *b)
 static void load_trans(SpriteBank *b)
 {
     size_t sz;
-    uint8_t *t = file_read_all("ART/TRANS.TBL", &sz);
+    uint8_t *t = vfs_read_all("ART/TRANS.TBL", &sz);
     if (t && sz == 4 + sizeof b->blend + sizeof b->shade + sizeof b->bright && t[0] == 1) {
         memcpy(b->blend, t + 4, sizeof b->blend);
         memcpy(b->shade, t + 4 + sizeof b->blend, sizeof b->shade);

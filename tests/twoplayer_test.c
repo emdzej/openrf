@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "exe.h"
+#include "vfs_host.h"
 
 static const char *MAP = "WORLDS/2PLAYER/LEVEL1/RFMAP101.RFM";
 static int fails;
@@ -71,6 +72,7 @@ static void show(const char *tag, int t)
 
 int main(void)
 {
+    vfs_mount_default();                                                  /* ./cd or $OPENRF_DATA */
     if (!exe_load()) { fprintf(stderr, "%s\n", exe_error()); return 1; }   /* tables from RFIRE.BIN */
     static World w;
     if (!load(&w)) return 1;

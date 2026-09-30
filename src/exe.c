@@ -1,6 +1,6 @@
 /* PE loader for the original game executable (see exe.h). */
 #include "exe.h"
-#include "assets.h"
+#include "vfs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,31 +79,21 @@ static bool finish(const uint8_t *d, size_t n, const char *where)
     return true;
 }
 
-bool exe_load_file(const char *path)
-{
-    if (image) return true;
-    FILE *f = fopen(path, "rb");
-    if (!f) {
-        snprintf(err, sizeof err,
-                 "%s was not found.\n\nOpenRF reads the original game's tables from RFIRE.BIN: it is on the "
-                 "root of the Return Fire CD, next to ART, SOUND, TITLE and WORLDS.", path);
-        return false;
-    }
-    fseek(f, 0, SEEK_END);
-    long n = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    uint8_t *d = n > 0 ? malloc((size_t)n) : NULL;
-    bool ok = d && fread(d, 1, (size_t)n, f) == (size_t)n;
-    fclose(f);
-    if (!ok) { free(d); snprintf(err, sizeof err, "%s: read error.", path); return false; }
-    ok = finish(d, (size_t)n, path);
-    free(d);
-    return ok;
-}
-
 bool exe_load(void)
 {
-    return exe_load_file(assets_path(EXE_FILE));
+    if (image) return true;
+    size_t n = 0;
+    uint8_t *d = vfs_read_all(EXE_FILE, &n);
+    if (!d) {
+        snprintf(err, sizeof err,
+                 "%s was not found in %s.\n\nOpenRF reads the original game's tables from RFIRE.BIN: it is on the "
+                 "root of the Return Fire CD, next to ART, SOUND, TITLE and WORLDS.", EXE_FILE,
+                 vfs_mounted() ? vfs_describe() : "the game data");
+        return false;
+    }
+    bool ok = finish(d, n, EXE_FILE);
+    free(d);
+    return ok;
 }
 
 bool exe_contains(uint32_t va, size_t n)

@@ -56,7 +56,7 @@ enum {
 typedef struct Obj Obj;
 typedef struct SfxInst SfxInst;
 
-/* Loads all samples (plain WAV .SDT via assets_path) and resets the mixer. Returns false when no
+/* Loads all samples (plain WAV .SDT through the file layer, vfs.h) and resets the mixer. Returns false when no
    sample could be loaded (then everything is a no-op). */
 bool sfx_init(void);
 void sfx_shutdown(void);

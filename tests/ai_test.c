@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "exe.h"
+#include "vfs_host.h"
 
 static const char *MAPS[] = {
     "WORLDS/1PLAYER/LEVEL1/RFMAP001.RFM", "WORLDS/1PLAYER/LEVEL2/RFMAP002.RFM", "WORLDS/1PLAYER/LEVEL3/RFMAP014.RFM",
@@ -357,6 +358,7 @@ static int test_sub(void)
 
 int main(void)
 {
+    vfs_mount_default();                                                  /* ./cd or $OPENRF_DATA */
     if (!exe_load()) { fprintf(stderr, "%s\n", exe_error()); return 1; }   /* tables from RFIRE.BIN */
     SpriteBank *sb = malloc(sizeof *sb);
     if (!sprites_load(sb, "ART/ART.CAR")) { fprintf(stderr, "cannot load ART.CAR (run from the project root)\n"); return 1; }

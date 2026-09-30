@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "exe.h"
+#include "vfs_host.h"
 
 static const char *MAP = "WORLDS/1PLAYER/LEVEL1/RFMAP001.RFM";
 static int n_expl, n_snd, n_flag;
@@ -138,6 +139,7 @@ static int shoot_until(Obj *v, uint32_t btn, int tx, int ty, int max_shots)
 
 int main(void)
 {
+    vfs_mount_default();                                                  /* ./cd or $OPENRF_DATA */
     if (!exe_load()) { fprintf(stderr, "%s\n", exe_error()); return 1; }   /* tables from RFIRE.BIN */
     World w;
     if (!world_load(&w, MAP)) { fprintf(stderr, "world_load failed (run from the project root)\n"); return 1; }

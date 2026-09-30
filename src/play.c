@@ -18,7 +18,6 @@
 #include "game/ai.h"
 #include "game/rules.h"
 #include "play_rules.h"
-#include <SDL3/SDL_scancode.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -344,9 +343,44 @@ static void player_draw(PlayerView *pv, int team, Collect *col, Framebuffer *fb,
     if (bm == BV_FLYBACK) ui_flyback_draw(fb, scale, v->x, v->y, v->w, v->h, bv, &pv->skull, dt);
 }
 
-static bool play_run_2p(const SpriteBank *sb, const char *rfm_rel, World *w, int demo);
+/* A level in progress: State_Game1P / State_Game2P, one game frame per step, then the end sequence. */
+enum { P_RUN, P_FINISH, P_DONE };
+struct Play {
+    int st, demo;
+    const SpriteBank *sb;
+    bool two;
+    const char *rfm_rel;
+    World *w;
+    Framebuffer *fb;
+    int scale;
+    Image8 bar, mid;
+    bool have_bar, have_mid;
+    int32_t drive_H;
+    Input in;
+    Clock clk;
+    Collect *col;
+    int bar_frames;
+    /* 1 player */
+    View *v;
+    int32_t pad[3];
+    CamTracker *trk;
+    Obj *tracked;
+    bool lis_copy;
+    BunkerMode last_mode;
+    UiSkull skull;
+    /* 2 players */
+    bool swap, swap_key;
+    int demo_phase;
+};
 
-bool play_run(const SpriteBank *sb, const char *rfm_rel)
+/* GameSetup1P 0x40cbb0: both listeners on player 1's camera (view+0x18), 10 units apart, both gains from
+   player 1's view (+0xe0). The mixer keeps pointers to these. */
+static int32_t lis_pos[3], lis_gain;
+static PlayerView pv[2];                                   /* 2 players (the mixer keeps pointers to lis_pos / lis_gain) */
+
+static Play *begin_2p(Play *p);
+
+Play *play_begin(const SpriteBank *sb, const char *rfm_rel)
 {
     const char *demo_s = getenv("OPENRF_DEMO");
     int demo = !demo_s ? DEMO_OFF : !strcmp(demo_s, "fire") ? DEMO_TANK : !strcmp(demo_s, "jeep") ? DEMO_JEEP
@@ -359,10 +393,19 @@ bool play_run(const SpriteBank *sb, const char *rfm_rel)
     if (!world_load(w, rfm_rel)) {
         fprintf(stderr, "cannot load level %s\n", rfm_rel);
         free(w);
-        return true;
+        return NULL;
     }
-    if (w->players > 1) return play_run_2p(sb, rfm_rel, w, demo);   /* LoadLevelMap: DAT_00443864 = header +0x16 */
-    if (demo >= DEMO_2P) demo = DEMO_DRIVE;
+    Play *p = calloc(1, sizeof *p);
+    p->w = w;
+    p->sb = sb;
+    p->rfm_rel = rfm_rel;
+    p->demo = demo;
+    p->fb = plat_fb();
+    p->scale = p->fb->w >= 640 ? 2 : 1;
+    const char *hs = getenv("OPENRF_CAM_H");
+    p->drive_H = (hs ? atoi(hs) : 0) << 16;
+    if (w->players > 1) return begin_2p(p);            /* LoadLevelMap: DAT_00443864 = header +0x16 */
+    if (demo >= DEMO_2P) p->demo = demo = DEMO_DRIVE;
     /* HudInit(1) runs before ViewEnterBunkerSelect (GameSetup1P). */
     hud_init(1);
     game_hooks.hud = hud_event;
@@ -370,7 +413,8 @@ bool play_run(const SpriteBank *sb, const char *rfm_rel)
     if (!game_load(w, rfm_rel)) {
         fprintf(stderr, "cannot load level %s\n", rfm_rel);
         free(w);
-        return true;
+        free(p);
+        return NULL;
     }
     fprintf(stderr, "level \"%s\" (%s)\n", w->name, rfm_rel);
     ai_level_start();                                  /* drone pool, turret counters, SpawnDrone / SpawnSub hooks */
@@ -392,10 +436,7 @@ bool play_run(const SpriteBank *sb, const char *rfm_rel)
     ai_hooks.snd_play = ai_snd_play;
     ai_hooks.snd_stereo = ai_snd_stereo;
     ai_hooks.snd_kill = ai_snd_kill;
-    /* GameSetup1P 0x40cbb0: both listeners on player 1's camera (view+0x18), 10 units apart, both
-       gains from player 1's view (+0xe0). */
-    static int32_t lis_pos[3], lis_gain;
-    bool lis_copy = false;
+    p->lis_copy = false;
     lis_gain = 0;
     ai_hooks.listener[0] = ai_hooks.listener[1] = lis_pos;
     sfx_set_time((uint32_t)g_tick);
@@ -405,126 +446,142 @@ bool play_run(const SpriteBank *sb, const char *rfm_rel)
     sfx_cmd(SFX_LISTENER_GAIN, 0, &lis_gain, false);
     sfx_cmd(SFX_LISTENER_GAIN, 1, &lis_gain, true);
 
-    Framebuffer *fb = plat_fb();
-    int scale = fb->w >= 640 ? 2 : 1;
-    memcpy(fb->palette, sb->palette, sizeof fb->palette);
-    Image8 bar;
-    bool have_bar = image_load_bmp8(scale == 2 ? "ART/1PBSCRH.RFA" : "ART/1PBSCRL.RFA", &bar);
+    memcpy(p->fb->palette, sb->palette, sizeof p->fb->palette);
+    p->have_bar = image_load_bmp8(p->scale == 2 ? "ART/1PBSCRH.RFA" : "ART/1PBSCRL.RFA", &p->bar);
     render_init(sb);
 
     /* Camera: the bunker camera over the pad (View_EnterBunkerCam 0x404ee0), then follow the vehicle.
        The driving height from SpawnVehicle (-170) zooms 2.3x; keep it adjustable until verified. */
-    const char *hs = getenv("OPENRF_CAM_H");
-    int32_t drive_H = (hs ? atoi(hs) : 0) << 16;
-    View *v = calloc(1, sizeof *v);
-    view_init(v, 0, 0, 320, 152);
-    int32_t pad[3] = { G.teams[0].pad->x, G.teams[0].pad->y, 0 };
-    CamTracker *trk = camera_add_tracker(v, 0, pad, NULL, 0, 0x180000, 0, true, NULL);
-    camera_snap(v, pad, 0, 0x180000);
-    Obj *tracked = NULL;
+    p->v = calloc(1, sizeof *p->v);
+    view_init(p->v, 0, 0, 320, 152);
+    p->pad[0] = G.teams[0].pad->x; p->pad[1] = G.teams[0].pad->y; p->pad[2] = 0;
+    p->trk = camera_add_tracker(p->v, 0, p->pad, NULL, 0, 0x180000, 0, true, NULL);
+    camera_snap(p->v, p->pad, 0, 0x180000);
+    p->tracked = NULL;
     music_request(MUS_BUNKER, 0x80, 0);   /* FUN_0040cbb0 */
-    play_rules_start(v, NULL);            /* EndGame hook, game clock, flag camera */
+    play_rules_start(p->v, NULL);         /* EndGame hook, game clock, flag camera */
 
-    Input in = { 0 };
-    Clock clk;
-    clock_start(&clk);
-    Collect *col = malloc(sizeof *col);
-    int bar_frames = 6;
-    bool quit = false;
-    BunkerMode last_mode = G.views[0].mode;
-    UiSkull skull;
-    ui_skull_reset(&skull);
-    while (G.winner == -2) {
-        if (!plat_poll()) { quit = true; break; }
-        if (plat_key_down(SDL_SCANCODE_ESCAPE)) break;
-        input_poll(&in, 1);
-        int dt = clock_frame(&clk);
-        if (demo) in.cur[0] |= demo_input(clk.game_ticks, demo);
-        if (demo == DEMO_SUB) {                               /* airborne -> jump near the west edge, fly off */
-            Obj *h = get_team_vehicle(0);
-            static int sub_phase;
-            if (!h) sub_phase = 0;
-            else if (sub_phase == 0 && h->pos[2] >= 0x320000) {
-                obj_move_to(h, 0x600000, h->pos[1], h->pos[2]);
-                h->heading = 0x300000;
-                camera_snap(v, h->pos, drive_H + (70 << 16), 0x180000);
-                sub_phase = 1;
-            } else if (sub_phase == 1 && h->pos[0] > -0x600000) in.cur[0] |= IN_UP | 0xff00;
-        }
-        sfx_set_time((uint32_t)g_tick);
-        game_frame(dt, in.cur[0]);
-        ai_frame_end();                                       /* Mus_Director: SUB music */
-        play_rules_frame();                                   /* Mus_Director: Flag Discovery / Pickup */
-        sfx_set_time((uint32_t)g_tick);
+    clock_start(&p->clk);
+    p->col = malloc(sizeof *p->col);
+    p->bar_frames = 6;
+    p->last_mode = G.views[0].mode;
+    ui_skull_reset(&p->skull);
+    p->st = P_RUN;
+    return p;
+}
 
-        Obj *veh = get_team_vehicle(0);
-        if (veh != tracked) {
-            camera_remove_tracker(v, trk);
-            if (veh) trk = camera_add_tracker(v, 0, veh->pos, NULL, 10 << 16, 0x180000,
-                                              veh_state(veh)->def->type == VT_HELI ? drive_H + (70 << 16) : drive_H, true, NULL);
-            else trk = camera_add_tracker(v, 0, pad, NULL, 0, 0x180000, 0, true, NULL);
-            tracked = veh;
-        }
-        camera_update(v, dt);
-        lis_pos[0] = v->camx; lis_pos[1] = v->camy; lis_pos[2] = v->H;   /* view +0x18/+0x1c/+0x20 */
-        lis_gain = view_sound_gain(&G.views[0], lis_gain, &lis_copy);
-
-        render_clear_objects(v);
-        col->v = v;
-        col->n = 0;
-        obj_foreach_live(collect, col);
-        RenderMap rm = { G.cell, (const int8_t (*)[4])G.jitter, on_tower, col };
-        v->team = 0;
-        hud_radar_update();                                   /* RadarUpdateMovers */
-        /* Only the view is cleared: the status bar keeps last frame's pixels and the HUD redraws
-           just its dirty widgets, as on the original's un-cleared back buffers. */
-        memset(fb->pixels, 0, (size_t)fb->w * (size_t)(v->h * scale < fb->h ? v->h * scale : fb->h));
-        /* The view callback: ViewModeBunkerSelect / FUN_00404ae0 draw the lift shaft instead of the world. */
-        BunkerMode bm = G.views[0].mode;
-        if (bm == BV_FLYBACK && last_mode != BV_FLYBACK) ui_skull_reset(&skull);   /* FUN_00404ee0 */
-        last_mode = bm;
-        if (bm == BV_SELECT || bm == BV_LAUNCH) ui_select_draw(fb, scale, v->w, v->h, &G.views[0], (uint32_t)g_tick);
-        else if (bm != BV_FLYBACK || G.views[0].fly_stage < 2) {   /* 0x405360 / 0x405440: fade cel instead */
-            render_world(v, &rm, fb, scale);
-            G.drones[0] = v->enemy_turrets;                   /* DAT_00471458: gates the idle drone */
-        }
-        if (bm == BV_FLYBACK) ui_flyback_draw(fb, scale, v->x, v->y, v->w, v->h, &G.views[0], &skull, dt);   /* FUN_00404fb0 */
-        effects_reap_drawn();                                 /* draw-time removals of 0x433a60 / 0x435e40 */
-        if (bar_frames > 0) {                                 /* DrawStatusBarBackground (DAT_004410b0 frames) */
-            bar_frames--;
-            if (have_bar) draw_statusbar(&bar, fb);
-            hud_mark_dirty(0, 0x3ff);
-        }
-        hud_update_all(fb, scale, 1);                         /* HudUpdateAll(1) */
-        music_service();
-        sfx_frame();                                          /* Snd_QueueCommand(2,0,0,1) + Snd_Service(0x67) */
-        plat_present();
-    }
+/* Leaving the level (won, lost or Esc): stop everything, then the end sequence. */
+static void leave_level(Play *p)
+{
     sfx_cmd(SFX_STOP_ALL, 1, NULL, true);                     /* leaving the level: stop everything */
     sfx_cmd(SFX_LISTENER1, 0, NULL, false);
     sfx_cmd(SFX_LISTENER2, 0, NULL, false);
     sfx_cmd(SFX_LISTENER_GAIN, 0, NULL, false);
     sfx_cmd(SFX_LISTENER_GAIN, 1, NULL, true);
+    if (p->two) ai_hooks.listener[0] = ai_hooks.listener[1] = NULL;
     game_hooks.sound = NULL;
     game_hooks.sound_step = NULL;
-    bool keep = play_rules_finish(rfm_rel, quit);             /* EndGame fade, win sequence, high score */
-    free(col);
-    view_free(v);
-    free(v);
-    if (have_bar) image_free(&bar);
-    free(w);
+}
+
+static void free_level(Play *p)
+{
+    free(p->col);
+    p->col = NULL;
+    if (p->two) for (int k = 0; k < 2; k++) { view_free(pv[k].v); free(pv[k].v); pv[k].v = NULL; }
+    else { view_free(p->v); free(p->v); p->v = NULL; }
+    if (p->have_bar) image_free(&p->bar);
+    if (p->have_mid) image_free(&p->mid);
+    p->have_bar = p->have_mid = false;
+    free(p->w);
+    p->w = NULL;
     game_hooks.hud = NULL;
     game_hooks.hud_dirty = NULL;
-    return keep;
+}
+
+static Step step_1p(Play *p)
+{
+    Framebuffer *fb = p->fb;
+    int scale = p->scale;
+    View *v = p->v;
+    int demo = p->demo;
+    input_set_menu(0, G.views[0].mode == BV_SELECT);
+    input_poll(&p->in, 1);
+    int dt = clock_frame(&p->clk);
+    if (demo) p->in.cur[0] |= demo_input(p->clk.game_ticks, demo);
+    if (demo == DEMO_SUB) {                               /* airborne -> jump near the west edge, fly off */
+        Obj *h = get_team_vehicle(0);
+        static int sub_phase;
+        if (!h) sub_phase = 0;
+        else if (sub_phase == 0 && h->pos[2] >= 0x320000) {
+            obj_move_to(h, 0x600000, h->pos[1], h->pos[2]);
+            h->heading = 0x300000;
+            camera_snap(v, h->pos, p->drive_H + (70 << 16), 0x180000);
+            sub_phase = 1;
+        } else if (sub_phase == 1 && h->pos[0] > -0x600000) p->in.cur[0] |= IN_UP | 0xff00;
+    }
+    sfx_set_time((uint32_t)g_tick);
+    game_frame(dt, p->in.cur[0]);
+    ai_frame_end();                                       /* Mus_Director: SUB music */
+    play_rules_frame();                                   /* Mus_Director: Flag Discovery / Pickup */
+    sfx_set_time((uint32_t)g_tick);
+
+    Obj *veh = get_team_vehicle(0);
+    if (veh != p->tracked) {
+        camera_remove_tracker(v, p->trk);
+        if (veh) p->trk = camera_add_tracker(v, 0, veh->pos, NULL, 10 << 16, 0x180000,
+                                             veh_state(veh)->def->type == VT_HELI ? p->drive_H + (70 << 16) : p->drive_H, true, NULL);
+        else p->trk = camera_add_tracker(v, 0, p->pad, NULL, 0, 0x180000, 0, true, NULL);
+        p->tracked = veh;
+    }
+    camera_update(v, dt);
+    lis_pos[0] = v->camx; lis_pos[1] = v->camy; lis_pos[2] = v->H;   /* view +0x18/+0x1c/+0x20 */
+    lis_gain = view_sound_gain(&G.views[0], lis_gain, &p->lis_copy);
+
+    Collect *col = p->col;
+    render_clear_objects(v);
+    col->v = v;
+    col->n = 0;
+    obj_foreach_live(collect, col);
+    RenderMap rm = { G.cell, (const int8_t (*)[4])G.jitter, on_tower, col };
+    v->team = 0;
+    hud_radar_update();                                   /* RadarUpdateMovers */
+    /* Only the view is cleared: the status bar keeps last frame's pixels and the HUD redraws
+       just its dirty widgets, as on the original's un-cleared back buffers. */
+    memset(fb->pixels, 0, (size_t)fb->w * (size_t)(v->h * scale < fb->h ? v->h * scale : fb->h));
+    /* The view callback: ViewModeBunkerSelect / FUN_00404ae0 draw the lift shaft instead of the world. */
+    BunkerMode bm = G.views[0].mode;
+    if (bm == BV_FLYBACK && p->last_mode != BV_FLYBACK) ui_skull_reset(&p->skull);   /* FUN_00404ee0 */
+    p->last_mode = bm;
+    if (bm == BV_SELECT || bm == BV_LAUNCH) ui_select_draw(fb, scale, v->w, v->h, &G.views[0], (uint32_t)g_tick);
+    else if (bm != BV_FLYBACK || G.views[0].fly_stage < 2) {   /* 0x405360 / 0x405440: fade cel instead */
+        render_world(v, &rm, fb, scale);
+        G.drones[0] = v->enemy_turrets;                   /* DAT_00471458: gates the idle drone */
+    }
+    if (bm == BV_FLYBACK) ui_flyback_draw(fb, scale, v->x, v->y, v->w, v->h, &G.views[0], &p->skull, dt);   /* FUN_00404fb0 */
+    effects_reap_drawn();                                 /* draw-time removals of 0x433a60 / 0x435e40 */
+    if (p->bar_frames > 0) {                              /* DrawStatusBarBackground (DAT_004410b0 frames) */
+        p->bar_frames--;
+        if (p->have_bar) draw_statusbar(&p->bar, fb);
+        hud_mark_dirty(0, 0x3ff);
+    }
+    hud_update_all(fb, scale, 1);                         /* HudUpdateAll(1) */
+    music_service();
+    sfx_frame();                                          /* Snd_QueueCommand(2,0,0,1) + Snd_Service(0x67) */
+    plat_present();
+    return STEP_FRAME;
 }
 
 /* 2-player game: State_Game2P 0x40ec50 / GameFrame2P 0x41aa70 order. GameSetup2P 0x41a750 views
    (320x240 space): player 1 (0,0) 156x149 with screen window (8,12), player 2 (164,0) 156x149 with
    (-8,12); hi-res draws the same layout 2x. Listener 1 = player 1's camera (left channel), listener 2 =
    player 2's (right), each with its own view's gain (+0xe0). */
-static bool play_run_2p(const SpriteBank *sb, const char *rfm_rel, World *w, int demo)
+static Play *begin_2p(Play *p)
 {
-    if (demo && demo < DEMO_2P) demo = DEMO_2P;
+    World *w = p->w;
+    const char *rfm_rel = p->rfm_rel;
+    const SpriteBank *sb = p->sb;
+    p->two = true;
+    if (p->demo && p->demo < DEMO_2P) p->demo = DEMO_2P;
     /* GameSetup2P: HudInit(2) before the two ViewEnterBunkerSelect calls. */
     hud_init(2);
     game_hooks.hud = hud_event;
@@ -532,7 +589,8 @@ static bool play_run_2p(const SpriteBank *sb, const char *rfm_rel, World *w, int
     if (!game_load(w, rfm_rel)) {
         fprintf(stderr, "cannot load level %s\n", rfm_rel);
         free(w);
-        return true;
+        free(p);
+        return NULL;
     }
     fprintf(stderr, "level \"%s\" (%s), 2 players\n", w->name, rfm_rel);
     ai_level_start();
@@ -543,7 +601,6 @@ static bool play_run_2p(const SpriteBank *sb, const char *rfm_rel, World *w, int
     ai_hooks.snd_stereo = ai_snd_stereo;
     ai_hooks.snd_kill = ai_snd_kill;
 
-    static PlayerView pv[2];                               /* the mixer keeps pointers to lis_pos / lis_gain */
     memset(pv, 0, sizeof pv);
     ai_hooks.listener[0] = pv[0].lis_pos;
     ai_hooks.listener[1] = pv[1].lis_pos;
@@ -554,102 +611,116 @@ static bool play_run_2p(const SpriteBank *sb, const char *rfm_rel, World *w, int
     sfx_cmd(SFX_LISTENER_GAIN, 0, &pv[0].lis_gain, false); /* (8, 0, view 1 +0xe0) */
     sfx_cmd(SFX_LISTENER_GAIN, 1, &pv[1].lis_gain, true);  /* (8, 1, view 2 +0xe0) */
 
-    Framebuffer *fb = plat_fb();
-    int scale = fb->w >= 640 ? 2 : 1;
+    Framebuffer *fb = p->fb;
+    int scale = p->scale;
     memcpy(fb->palette, sb->palette, sizeof fb->palette);
-    Image8 bar, mid;                                       /* LoadStatusBarArt: 2pBScr{L,H}.rfa + 2pMScr.rfa */
-    bool have_bar = image_load_bmp8(scale == 2 ? "ART/2PBSCRH.RFA" : "ART/2PBSCRL.RFA", &bar);
-    bool have_mid = image_load_bmp8("ART/2PMSCR.RFA", &mid);
+    /* LoadStatusBarArt: 2pBScr{L,H}.rfa + 2pMScr.rfa */
+    p->have_bar = image_load_bmp8(scale == 2 ? "ART/2PBSCRH.RFA" : "ART/2PBSCRL.RFA", &p->bar);
+    p->have_mid = image_load_bmp8("ART/2PMSCR.RFA", &p->mid);
     render_init(sb);
 
-    const char *hs = getenv("OPENRF_CAM_H");
-    int32_t drive_H = (hs ? atoi(hs) : 0) << 16;
-    for (int p = 0; p < 2; p++) {
-        PlayerView *q = &pv[p];
+    for (int k = 0; k < 2; k++) {
+        PlayerView *q = &pv[k];
         q->v = calloc(1, sizeof *q->v);
-        view_init(q->v, p ? 0xa4 : 0, 0, 0x9c, 0x95);
-        view_set_window(q->v, p ? -8 : 8, 0xc);            /* Camera_SetScreenWindow(view, +-8, 12, 0x94, 0x89) */
-        q->pad[0] = G.teams[p].pad->x; q->pad[1] = G.teams[p].pad->y; q->pad[2] = 0;
+        view_init(q->v, k ? 0xa4 : 0, 0, 0x9c, 0x95);
+        view_set_window(q->v, k ? -8 : 8, 0xc);            /* Camera_SetScreenWindow(view, +-8, 12, 0x94, 0x89) */
+        q->pad[0] = G.teams[k].pad->x; q->pad[1] = G.teams[k].pad->y; q->pad[2] = 0;
         q->trk = camera_add_tracker(q->v, 0, q->pad, NULL, 0, 0x180000, 0, true, NULL);
         camera_snap(q->v, q->pad, 0, 0x180000);
-        q->last_mode = G.views[p].mode;
+        q->last_mode = G.views[k].mode;
         ui_skull_reset(&q->skull);
     }
     music_request(MUS_BUNKER, 0x80, 0);                    /* OnMenuCommand 0x40cbb0: DAT_00480e9c = 2 */
     play_rules_start(pv[0].v, pv[1].v);
 
-    Input in = { 0 };
-    Clock clk;
-    clock_start(&clk);
-    Collect *col = malloc(sizeof *col);
-    int bar_frames = 6;
-    bool quit = false, swap = false, swap_key = false;
-    int demo_phase = 0;
-    while (G.winner == -2) {
-        if (!plat_poll()) { quit = true; break; }
-        if (plat_key_down(SDL_SCANCODE_ESCAPE)) break;
-        /* Alt+3 "Swap Sides" (menu 0x415, DAT_0043fc9c): the two input devices change players. */
-        bool k3 = (plat_key_down(SDL_SCANCODE_LALT) || plat_key_down(SDL_SCANCODE_RALT)) && plat_key_down(SDL_SCANCODE_3);
-        if (k3 && !swap_key) { swap = !swap; fprintf(stderr, "swap sides: %s\n", swap ? "on" : "off"); }
-        swap_key = k3;
-        input_poll(&in, 2);
-        int dt = clock_frame(&clk);
-        uint32_t w0 = in.cur[swap], w1 = in.cur[!swap];
-        if (demo) {
-            w0 |= demo_input_2p(clk.game_ticks, demo, 0);
-            w1 |= demo_input_2p(clk.game_ticks, demo, 1);
-            Obj *v0 = get_team_vehicle(0), *v1 = get_team_vehicle(1);
-            if (demo == DEMO_2P_WIN && demo_phase == 0 && v0 && v1 && clk.game_ticks > 700) {
-                rules_end_game(1);                         /* player 2 (green) wins */
-                demo_phase = 1;
-            }
-            if (demo == DEMO_2P_SPECTATE && demo_phase == 0 && v0 && clk.game_ticks > 420) {
-                for (int k = 0; k < 4; k++) TEAM_STOCK(&G.teams[0], k) = 0;
-                veh_damage(v0, NULL, 0x7f0000);            /* last vehicle lost -> fly-back -> spectate */
-                demo_phase = 1;
-            }
+    clock_start(&p->clk);
+    p->col = malloc(sizeof *p->col);
+    p->bar_frames = 6;
+    p->swap = p->swap_key = false;
+    p->demo_phase = 0;
+    p->st = P_RUN;
+    return p;
+}
+
+static Step step_2p(Play *p)
+{
+    Framebuffer *fb = p->fb;
+    int scale = p->scale, demo = p->demo;
+    /* Alt+3 "Swap Sides" (menu 0x415, DAT_0043fc9c): the two input devices change players. */
+    bool k3 = input_ui(UI_SWAP);
+    if (k3 && !p->swap_key) { p->swap = !p->swap; fprintf(stderr, "swap sides: %s\n", p->swap ? "on" : "off"); }
+    p->swap_key = k3;
+    for (int k = 0; k < 2; k++) input_set_menu(k, G.views[k ^ p->swap].mode == BV_SELECT);
+    input_poll(&p->in, 2);
+    int dt = clock_frame(&p->clk);
+    uint32_t w0 = p->in.cur[p->swap], w1 = p->in.cur[!p->swap];
+    if (demo) {
+        w0 |= demo_input_2p(p->clk.game_ticks, demo, 0);
+        w1 |= demo_input_2p(p->clk.game_ticks, demo, 1);
+        Obj *v0 = get_team_vehicle(0), *v1 = get_team_vehicle(1);
+        if (demo == DEMO_2P_WIN && p->demo_phase == 0 && v0 && v1 && p->clk.game_ticks > 700) {
+            rules_end_game(1);                         /* player 2 (green) wins */
+            p->demo_phase = 1;
         }
-        sfx_set_time((uint32_t)g_tick);
-        game_frame_2p(dt, w0, w1);
-        ai_frame_end();                                    /* Mus_Director: SUB music */
-        play_rules_frame();                                /* Mus_Director: flag cues, both players in the bunker */
-        sfx_set_time((uint32_t)g_tick);
-        for (int p = 0; p < 2; p++) player_camera(&pv[p], p, drive_H, dt);
-        hud_radar_update();                                /* RadarUpdateMovers */
-        for (int p = 0; p < 2; p++) {                      /* only the view rectangles are redrawn */
-            const View *v = pv[p].v;
-            for (int y = v->y * scale; y < (v->y + v->h) * scale && y < fb->h; y++)
-                memset(fb->pixels + (size_t)y * fb->w + v->x * scale, 0, (size_t)(v->w * scale));
+        if (demo == DEMO_2P_SPECTATE && p->demo_phase == 0 && v0 && p->clk.game_ticks > 420) {
+            for (int k = 0; k < 4; k++) TEAM_STOCK(&G.teams[0], k) = 0;
+            veh_damage(v0, NULL, 0x7f0000);            /* last vehicle lost -> fly-back -> spectate */
+            p->demo_phase = 1;
         }
-        for (int p = 0; p < 2; p++) player_draw(&pv[p], p, col, fb, scale, dt);   /* (*0x48be50)(), (*0x48c09c)() */
-        effects_reap_drawn();
-        if (bar_frames > 0) {                              /* DrawStatusBarBackground (DAT_004410b0 frames) */
-            bar_frames--;
-            if (have_mid) draw_divider(&mid, fb, scale == 2);
-            if (have_bar) draw_statusbar(&bar, fb);
-            hud_mark_dirty(0, 0x3ff);
-            hud_mark_dirty(1, 0x3ff);
-        }
-        hud_update_all(fb, scale, 2);                      /* HudUpdateAll(2) */
-        music_service();
-        sfx_frame();
-        plat_present();
     }
-    sfx_cmd(SFX_STOP_ALL, 1, NULL, true);
-    sfx_cmd(SFX_LISTENER1, 0, NULL, false);
-    sfx_cmd(SFX_LISTENER2, 0, NULL, false);
-    sfx_cmd(SFX_LISTENER_GAIN, 0, NULL, false);
-    sfx_cmd(SFX_LISTENER_GAIN, 1, NULL, true);
-    ai_hooks.listener[0] = ai_hooks.listener[1] = NULL;
-    game_hooks.sound = NULL;
-    game_hooks.sound_step = NULL;
-    bool keep = play_rules_finish(rfm_rel, quit);
-    free(col);
-    for (int p = 0; p < 2; p++) { view_free(pv[p].v); free(pv[p].v); pv[p].v = NULL; }
-    if (have_bar) image_free(&bar);
-    if (have_mid) image_free(&mid);
-    free(w);
-    game_hooks.hud = NULL;
-    game_hooks.hud_dirty = NULL;
-    return keep;
+    sfx_set_time((uint32_t)g_tick);
+    game_frame_2p(dt, w0, w1);
+    ai_frame_end();                                    /* Mus_Director: SUB music */
+    play_rules_frame();                                /* Mus_Director: flag cues, both players in the bunker */
+    sfx_set_time((uint32_t)g_tick);
+    for (int k = 0; k < 2; k++) player_camera(&pv[k], k, p->drive_H, dt);
+    hud_radar_update();                                /* RadarUpdateMovers */
+    for (int k = 0; k < 2; k++) {                      /* only the view rectangles are redrawn */
+        const View *v = pv[k].v;
+        for (int y = v->y * scale; y < (v->y + v->h) * scale && y < fb->h; y++)
+            memset(fb->pixels + (size_t)y * fb->w + v->x * scale, 0, (size_t)(v->w * scale));
+    }
+    for (int k = 0; k < 2; k++) player_draw(&pv[k], k, p->col, fb, scale, dt);   /* (*0x48be50)(), (*0x48c09c)() */
+    effects_reap_drawn();
+    if (p->bar_frames > 0) {                           /* DrawStatusBarBackground (DAT_004410b0 frames) */
+        p->bar_frames--;
+        if (p->have_mid) draw_divider(&p->mid, fb, scale == 2);
+        if (p->have_bar) draw_statusbar(&p->bar, fb);
+        hud_mark_dirty(0, 0x3ff);
+        hud_mark_dirty(1, 0x3ff);
+    }
+    hud_update_all(fb, scale, 2);                      /* HudUpdateAll(2) */
+    music_service();
+    sfx_frame();
+    plat_present();
+    return STEP_FRAME;
+}
+
+Step play_step(Play *p)
+{
+    switch (p->st) {
+    case P_RUN:
+        if (G.winner == -2 && !input_ui(UI_BACK)) return p->two ? step_2p(p) : step_1p(p);
+        leave_level(p);                                /* won / lost, or Esc */
+        play_rules_finish_begin(p->rfm_rel);           /* EndGame fade, win sequence, high score */
+        p->st = P_FINISH;
+        return STEP_AGAIN;
+    case P_FINISH: {
+        Step s = play_rules_finish_step();
+        if (s != STEP_DONE) return s;
+        free_level(p);
+        p->st = P_DONE;
+        return STEP_DONE;
+    }
+    }
+    return STEP_DONE;
+}
+
+void play_end(Play *p)
+{
+    if (!p) return;
+    if (p->st == P_RUN) leave_level(p);
+    if (p->st != P_DONE) { play_rules_cancel(); free_level(p); }
+    for (int k = 0; k < 2; k++) input_set_menu(k, false);
+    free(p);
 }

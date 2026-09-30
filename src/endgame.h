@@ -2,6 +2,7 @@
    banner TITLE/Ban{B,G}{L,H}.bmp, WIN*.STM by level with the banner over it), RecordHighScore 0x42d8b0
    (RFire_HS, XOR obfuscated) as done by State_BackScreen. */
 #pragma once
+#include "app.h"
 #include "platform.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -14,14 +15,22 @@ typedef struct {
     const char *map_rel;    /* the map file (the high-score record keeps its base name) */
 } GameResult;
 
-/* SetFadeTarget(0, ms) on the current frame (palette fade of the 8-bit framebuffer). */
-bool endgame_fade_out(uint32_t ms);
-/* State_EndOfGameSequence; false if the user closed the window. */
-bool endgame_sequence(const GameResult *r);
+/* SetFadeTarget(to, ms) from `from` (16.16) on pal: a palette fade of what is in the 8-bit framebuffer,
+   one presented frame per step (the step at t >= ms is the last one presented). */
+typedef struct { RGB pal[256]; int32_t from, to; uint32_t ms; uint64_t t0; bool done; } Fade;
+void fade_begin(Fade *f, const RGB *pal, int32_t from, int32_t to, uint32_t ms);
+Step fade_step(Fade *f);
+
+/* EndGame's 1 s fade out, then State_EndOfGameSequence (win music, banner, win movie; or a second fade
+   for no winner). Step until STEP_DONE. r->map_rel must stay valid until then. */
+void endgame_begin(const GameResult *r);
+Step endgame_step(void);
+void endgame_cancel(void);                  /* quitting mid-sequence: release the movie and banner */
 /* RecordHighScore: 1-player wins keep the best time per (level, map); 2-player games count wins / draws per
    pair of names. Returns true if the table changed. */
 bool highscore_record(const GameResult *r);
-/* ~/Library/Application Support/Return Fire/RFire_HS (OPENRF_HS overrides; tests). */
+/* Where the table is stored (plat_storage_location("RFire_HS"); SDL build: ~/Library/Application
+   Support/Return Fire/RFire_HS, OPENRF_HS overrides it for the tests). */
 const char *highscore_path(void);
 /* Decoded 1-player records (for the log / tests): returns the count, fills up to max. */
 typedef struct { int level; char map[33], player[33]; uint32_t time_ms; } HighScore1P;

@@ -1,7 +1,8 @@
 /* Development map viewer: the perspective world view (src/render) at the bunker camera
    (View_EnterBunkerCam 0x404ee0: pitch 0x180000, H 0), 1P viewport 320x152 rendered at 2x like the
    original hi-res mode, with the 1P status-bar background under it (DrawStatusBarBackground 0x437f90).
-   Arrows move the tracked point (Shift = faster), [ and ] switch map, Esc returns. */
+   Arrows (pad: d-pad) move the tracked point (Shift = faster), [ and ] (L / R) switch map, Esc
+   (START + SELECT) returns. */
 #include "viewer.h"
 #include "world.h"
 #include "sprites.h"
@@ -9,28 +10,40 @@
 #include "music.h"
 #include "clock.h"
 #include "render/render.h"
-#include <SDL3/SDL_scancode.h>
-#include <dirent.h>
+#include "input.h"
+#include "vfs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+
+typedef struct { char (*paths)[64]; int n, max; const char *dir; } MapList;
+
+static bool contains_rfm(const char *s)             /* strcasestr(s, ".RFM"), which not every libc has */
+{
+    for (; *s; s++) if (!strncasecmp(s, ".RFM", 4)) return true;
+    return false;
+}
+
+static void add_map(const char *name, bool is_dir, void *user)
+{
+    MapList *l = user;
+    if (!is_dir && contains_rfm(name) && l->n < l->max) snprintf(l->paths[l->n++], 64, "%s/%s", l->dir, name);
+}
 
 static int map_paths(char paths[][64], int max)
 {
-    int n = 0;
+    MapList l = { paths, 0, max, NULL };
     const char *groups[] = { "WORLDS/1PLAYER", "WORLDS/2PLAYER" };
     for (int g = 0; g < 2; g++)
         for (int lv = 1; lv <= 9; lv++) {
             char dir[64];
             snprintf(dir, sizeof dir, "%s/LEVEL%d", groups[g], lv);
-            DIR *d = opendir(assets_path(dir));
-            struct dirent *e;
-            while (d && (e = readdir(d)) && n < max)
-                if (strcasestr(e->d_name, ".RFM")) snprintf(paths[n++], 64, "%s/%s", dir, e->d_name);
-            if (d) closedir(d);
+            l.dir = dir;
+            vfs_list(dir, add_map, &l);
         }
-    qsort(paths, (size_t)n, 64, (int (*)(const void *, const void *))strcasecmp);
-    return n;
+    qsort(paths, (size_t)l.n, 64, (int (*)(const void *, const void *))strcasecmp);
+    return l.n;
 }
 
 /* The status-bar RFA is blitted to the bottom of the back buffer. Its pixels index the game
@@ -46,62 +59,86 @@ static void draw_statusbar(const Image8 *img, Framebuffer *fb)
     }
 }
 
-bool viewer_run(const SpriteBank *sb)
-{
-    static char paths[256][64];
-    int n = map_paths(paths, 256), cur = 0;
-    if (!n) { fprintf(stderr, "no maps found\n"); return true; }
-    World *w = malloc(sizeof *w);
-    CellMap *cm = malloc(sizeof *cm);
-    Framebuffer *fb = plat_fb();
-    int scale = fb->w >= 640 ? 2 : 1;
-    memcpy(fb->palette, sb->palette, sizeof fb->palette);
+static struct {
+    char paths[256][64];
+    int n, cur, loaded, scale;
+    World *w;
+    CellMap *cm;
     Image8 bar;
-    bool have_bar = image_load_bmp8(scale == 2 ? "ART/1PBSCRH.RFA" : "ART/1PBSCRL.RFA", &bar);
-    render_init(sb);
-    View v = { 0 };
-    int32_t target[3] = { 0, 0, 0 };
-    int loaded = -1;
-    bool prev_l = false, prev_r = false, quit = false;
+    bool have_bar, prev_l, prev_r;
+    View v;
+    int32_t target[3];
     Clock clk;
-    clock_start(&clk);
-    for (;;) {
-        if (loaded != cur) {
-            if (!world_load(w, paths[cur]) || !cellmap_load(cm, paths[cur])) fprintf(stderr, "bad map %s\n", paths[cur]);
-            fprintf(stderr, "%s: \"%s\" by %s, %dP, level %d\n", paths[cur], w->name, w->author, w->players, w->level);
-            int t = cm->npads[0] ? 0 : 1;
-            int px = cm->npads[t] ? cm->pad_x[t][0] : 64, py = cm->npads[t] ? cm->pad_y[t][0] : 64;
-            target[0] = (px * 32 + 16) << 16;
-            target[1] = (py * 32 + 16) << 16;
-            view_init(&v, 0, 0, 320, 152);
-            camera_add_tracker(&v, 0, target, NULL, 0, 0x180000, 0, true, NULL);
-            camera_snap(&v, target, 0, 0x180000);
-            loaded = cur;
-            music_request(MUS_BUNKER, 0x80, 0);   /* game start (FUN_0040cbb0) */
-        }
-        if (!plat_poll()) { quit = true; break; }
-        if (plat_key_down(SDL_SCANCODE_ESCAPE)) break;
-        int dt = clock_frame(&clk);
-        int32_t sp = (plat_key_down(SDL_SCANCODE_LSHIFT) ? 12 : 4) * dt << 16;
-        if (plat_key_down(SDL_SCANCODE_LEFT)) target[0] -= sp;
-        if (plat_key_down(SDL_SCANCODE_RIGHT)) target[0] += sp;
-        if (plat_key_down(SDL_SCANCODE_UP)) target[1] -= sp;
-        if (plat_key_down(SDL_SCANCODE_DOWN)) target[1] += sp;
-        bool l = plat_key_down(SDL_SCANCODE_LEFTBRACKET), r = plat_key_down(SDL_SCANCODE_RIGHTBRACKET);
-        if (l && !prev_l) cur = (cur + n - 1) % n;
-        if (r && !prev_r) cur = (cur + 1) % n;
-        prev_l = l; prev_r = r;
-        music_service();
-        camera_update(&v, dt);
-        RenderMap rm = cellmap_view(cm);
-        memset(fb->pixels, 0, (size_t)fb->w * fb->h);
-        render_world(&v, &rm, fb, scale);
-        if (have_bar) draw_statusbar(&bar, fb);
-        plat_present();
+} V;
+
+bool viewer_begin(const SpriteBank *sb)
+{
+    V.n = map_paths(V.paths, 256);
+    V.cur = 0;
+    if (!V.n) { fprintf(stderr, "no maps found\n"); return false; }
+    V.w = malloc(sizeof *V.w);
+    V.cm = malloc(sizeof *V.cm);
+    Framebuffer *fb = plat_fb();
+    V.scale = fb->w >= 640 ? 2 : 1;
+    memcpy(fb->palette, sb->palette, sizeof fb->palette);
+    V.have_bar = image_load_bmp8(V.scale == 2 ? "ART/1PBSCRH.RFA" : "ART/1PBSCRL.RFA", &V.bar);
+    render_init(sb);
+    memset(&V.v, 0, sizeof V.v);
+    memset(V.target, 0, sizeof V.target);
+    V.loaded = -1;
+    V.prev_l = V.prev_r = false;
+    clock_start(&V.clk);
+    return true;
+}
+
+Step viewer_step(void)
+{
+    Framebuffer *fb = plat_fb();
+    View *v = &V.v;
+    int32_t *target = V.target;
+    if (V.loaded != V.cur) {
+        const char *path = V.paths[V.cur];
+        if (!world_load(V.w, path) || !cellmap_load(V.cm, path)) fprintf(stderr, "bad map %s\n", path);
+        fprintf(stderr, "%s: \"%s\" by %s, %dP, level %d\n", path, V.w->name, V.w->author, V.w->players, V.w->level);
+        int t = V.cm->npads[0] ? 0 : 1;
+        int px = V.cm->npads[t] ? V.cm->pad_x[t][0] : 64, py = V.cm->npads[t] ? V.cm->pad_y[t][0] : 64;
+        target[0] = (px * 32 + 16) << 16;
+        target[1] = (py * 32 + 16) << 16;
+        view_init(v, 0, 0, 320, 152);
+        camera_add_tracker(v, 0, target, NULL, 0, 0x180000, 0, true, NULL);
+        camera_snap(v, target, 0, 0x180000);
+        V.loaded = V.cur;
+        music_request(MUS_BUNKER, 0x80, 0);   /* game start (FUN_0040cbb0) */
     }
-    if (have_bar) image_free(&bar);
-    view_free(&v);
-    free(cm);
-    free(w);
-    return !quit;
+    if (input_ui(UI_BACK)) return STEP_DONE;
+    int dt = clock_frame(&V.clk);
+    int32_t sp = (plat_key_down(KEY_LSHIFT) ? 12 : 4) * dt << 16;
+    uint32_t pad = plat_pad(0);
+    if (plat_key_down(KEY_LEFT) || (pad & PAD_LEFT)) target[0] -= sp;
+    if (plat_key_down(KEY_RIGHT) || (pad & PAD_RIGHT)) target[0] += sp;
+    if (plat_key_down(KEY_UP) || (pad & PAD_UP)) target[1] -= sp;
+    if (plat_key_down(KEY_DOWN) || (pad & PAD_DOWN)) target[1] += sp;
+    bool l = plat_key_down(KEY_LEFTBRACKET) || (pad & PAD_L), r = plat_key_down(KEY_RIGHTBRACKET) || (pad & PAD_R);
+    if (l && !V.prev_l) V.cur = (V.cur + V.n - 1) % V.n;
+    if (r && !V.prev_r) V.cur = (V.cur + 1) % V.n;
+    V.prev_l = l; V.prev_r = r;
+    music_service();
+    camera_update(v, dt);
+    RenderMap rm = cellmap_view(V.cm);
+    memset(fb->pixels, 0, (size_t)fb->w * fb->h);
+    render_world(v, &rm, fb, V.scale);
+    if (V.have_bar) draw_statusbar(&V.bar, fb);
+    plat_present();
+    return STEP_FRAME;
+}
+
+void viewer_end(void)
+{
+    if (V.have_bar) image_free(&V.bar);
+    V.have_bar = false;
+    view_free(&V.v);
+    free(V.cm);
+    free(V.w);
+    V.cm = NULL;
+    V.w = NULL;
 }

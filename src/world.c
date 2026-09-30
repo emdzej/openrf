@@ -1,6 +1,7 @@
 /* RFM loader, reproducing the cell build of FUN_004322f0 (docs/rfm.md). */
 #include "world.h"
 #include "assets.h"
+#include "vfs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +12,7 @@ static uint16_t rd16(const uint8_t *p) { return (uint16_t)(p[0] | p[1] << 8); }
 bool world_load(World *w, const char *rel)
 {
     size_t sz;
-    uint8_t *d = file_read_all(rel, &sz);
+    uint8_t *d = vfs_read_all(rel, &sz);
     if (!d) return false;
     memset(w, 0, sizeof *w);
     uint32_t dsize = sz >= 0x50 ? rd32(d + 0x44) : 0, doff = sz >= 0x50 ? rd32(d + 0x48) : 0;

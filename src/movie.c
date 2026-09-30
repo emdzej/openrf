@@ -2,9 +2,10 @@
    (Cinepak 320x240 @ 15 fps + 22050 Hz PCM) in fixed-size blocks.
    Like the original (FUN_004256f0) video is slaved to the audio clock. */
 #include "movie.h"
-#include "assets.h"
+#include "audio.h"
 #include "cinepak.h"
 #include "platform.h"
+#include "vfs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +14,20 @@ static uint32_t rd32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | 
 static uint16_t rd16(const uint8_t *p) { return (uint16_t)(p[0] | p[1] << 8); }
 
 typedef struct { const uint8_t *data; uint32_t size; bool key; } Frame;
+
+struct Movie {
+    uint8_t *file;
+    Frame *frames;
+    uint32_t nframes;
+    double fps;
+    int w, h;
+    Cinepak cp;
+    bool have_ov, fading;
+    MovieOverlay ov;
+    uint32_t *out;               /* composed output (overlay playback) */
+    int shown;
+    uint64_t fade_t0;
+};
 
 /* Pixel-double the frame into out and blit the overlay (key 0), scaled by fade (0..256). */
 static void compose(uint32_t *out, const uint32_t *fr, int w, int h, const MovieOverlay *ov, int fade)
@@ -44,22 +59,23 @@ static void compose(uint32_t *out, const uint32_t *fr, int w, int h, const Movie
         }
 }
 
-bool movie_play(const char *rel) { return movie_play_overlay(rel, NULL); }
-
-bool movie_play_overlay(const char *rel, const MovieOverlay *ov)
+Movie *movie_open(const char *rel, const MovieOverlay *ov)
 {
     size_t fsize;
-    uint8_t *f = file_read_all(rel, &fsize);
-    if (!f || fsize < 0x1000) { free(f); fprintf(stderr, "movie %s missing\n", rel); return true; }
-
+    uint8_t *f = vfs_read_all(rel, &fsize);
+    if (!f || fsize < 0x1000) { free(f); fprintf(stderr, "movie %s missing\n", rel); return NULL; }
+    Movie *m = calloc(1, sizeof *m);
+    m->file = f;
     uint32_t data_start = rd32(f), chunk_size = rd32(f + 4), nchunks = rd32(f + 8);
-    uint32_t vscale = rd32(f + 0xCC), vrate = rd32(f + 0xD0), nframes = rd32(f + 0xD8);
+    uint32_t vscale = rd32(f + 0xCC), vrate = rd32(f + 0xD0);
+    m->nframes = rd32(f + 0xD8);
     int channels = rd16(f + 0x98 + 2), freq = (int)rd32(f + 0x98 + 4), bits = rd16(f + 0x98 + 14);
-    int w = (int)rd32(f + 0x144 + 4), h = (int)rd32(f + 0x144 + 8);
-    double fps = vscale ? (double)vrate / vscale : 15.0;
+    m->w = (int)rd32(f + 0x144 + 4);
+    m->h = (int)rd32(f + 0x144 + 8);
+    m->fps = vscale ? (double)vrate / vscale : 15.0;
 
-    Frame *frames = calloc(nframes ? nframes : 1, sizeof *frames);
-    plat_pcm_open(freq, channels, bits);
+    m->frames = calloc(m->nframes ? m->nframes : 1, sizeof *m->frames);
+    audio_pcm_open(freq, channels, bits);
     for (uint32_t c = 0; c < nchunks; c++) {
         size_t base = data_start + (size_t)c * chunk_size;
         if (base + chunk_size > fsize) break;
@@ -70,48 +86,64 @@ bool movie_play_overlay(const char *rel, const MovieOverlay *ov)
             uint16_t num = rd16(rec + 6);
             const uint8_t *fr = rec + 8;
             uint32_t len = (uint32_t)fr[1] << 16 | fr[2] << 8 | fr[3];
-            if (num < nframes && r + 8 + len <= chunk_size) frames[num] = (Frame){ fr, len, rec[4] & 1 };
+            if (num < m->nframes && r + 8 + len <= chunk_size) m->frames[num] = (Frame){ fr, len, rec[4] & 1 };
             r = rd32(rec);
         }
-        if (aoff && aoff + acount * 4 <= chunk_size) plat_pcm_push(ch + aoff, (int)(acount * 4));
+        if (aoff && aoff + acount * 4 <= chunk_size) audio_pcm_push(ch + aoff, (int)(acount * 4));
     }
+    cinepak_init(&m->cp, m->w, m->h);
+    if (ov) {
+        m->have_ov = true;
+        m->ov = *ov;
+        m->out = malloc(sizeof(uint32_t) * (size_t)ov->out_w * (size_t)ov->out_h);
+    }
+    m->shown = -1;
+    return m;
+}
 
-    Cinepak cp;
-    cinepak_init(&cp, w, h);
-    uint32_t *out = ov ? malloc(sizeof(uint32_t) * (size_t)ov->out_w * (size_t)ov->out_h) : NULL;
-    bool running = true;
-    int shown = -1;
-    for (;;) {
-        if (!plat_poll()) { running = false; break; }
-        if (plat_any_key_pressed()) break;
-        int target = (int)(plat_pcm_played_seconds() * fps);
-        if (target >= (int)nframes) { if (plat_pcm_drained()) break; target = (int)nframes - 1; }
-        /* Decode every frame up to the target (inter frames depend on predecessors);
-           when far behind, jump to the latest keyframe like the original does. */
-        if (target - shown > 4)
-            for (int k = target; k > shown + 1; k--)
-                if (frames[k].key) { shown = k - 1; break; }
-        while (shown < target) {
-            shown++;
-            if (frames[shown].data) cinepak_decode(&cp, frames[shown].data, frames[shown].size);
-        }
-        if (ov && out) { compose(out, cp.frame, w, h, ov, 256); plat_present_rgb(out, ov->out_w, ov->out_h); }
-        else plat_present_rgb(cp.frame, w, h);
+Step movie_step(Movie *m)
+{
+    const MovieOverlay *ov = m->have_ov ? &m->ov : NULL;
+    if (m->fading) {                                   /* fade the last picture out */
+        uint64_t t = plat_ticks_ms() - m->fade_t0;
+        if (t >= (uint64_t)ov->fade_out_ms) return STEP_DONE;
+        compose(m->out, m->cp.frame, m->w, m->h, ov, (int)(256 - t * 256 / (uint64_t)ov->fade_out_ms));
+        plat_present_rgb(m->out, ov->out_w, ov->out_h);
+        return STEP_FRAME;
     }
-    if (ov && out && running && ov->fade_out_ms > 0) {          /* fade the last picture out */
-        uint64_t t0 = plat_ticks_ms();
-        for (;;) {
-            if (!plat_poll()) { running = false; break; }
-            uint64_t t = plat_ticks_ms() - t0;
-            if (t >= (uint64_t)ov->fade_out_ms) break;
-            compose(out, cp.frame, w, h, ov, (int)(256 - t * 256 / (uint64_t)ov->fade_out_ms));
-            plat_present_rgb(out, ov->out_w, ov->out_h);
-        }
+    bool end = plat_any_key_pressed();
+    int target = 0;
+    if (!end) {
+        target = (int)(audio_pcm_played_seconds() * m->fps);
+        if (target >= (int)m->nframes) { if (audio_pcm_drained()) end = true; target = (int)m->nframes - 1; }
     }
-    free(out);
-    cinepak_free(&cp);
-    plat_pcm_close();
-    free(frames);
-    free(f);
-    return running;
+    if (end) {
+        if (!(ov && m->out && ov->fade_out_ms > 0)) return STEP_DONE;
+        m->fading = true;
+        m->fade_t0 = plat_ticks_ms();
+        return STEP_AGAIN;
+    }
+    /* Decode every frame up to the target (inter frames depend on predecessors);
+       when far behind, jump to the latest keyframe like the original does. */
+    if (target - m->shown > 4)
+        for (int k = target; k > m->shown + 1; k--)
+            if (m->frames[k].key) { m->shown = k - 1; break; }
+    while (m->shown < target) {
+        m->shown++;
+        if (m->frames[m->shown].data) cinepak_decode(&m->cp, m->frames[m->shown].data, m->frames[m->shown].size);
+    }
+    if (ov && m->out) { compose(m->out, m->cp.frame, m->w, m->h, ov, 256); plat_present_rgb(m->out, ov->out_w, ov->out_h); }
+    else plat_present_rgb(m->cp.frame, m->w, m->h);
+    return STEP_FRAME;
+}
+
+void movie_close(Movie *m)
+{
+    if (!m) return;
+    free(m->out);
+    cinepak_free(&m->cp);
+    audio_pcm_close();
+    free(m->frames);
+    free(m->file);
+    free(m);
 }

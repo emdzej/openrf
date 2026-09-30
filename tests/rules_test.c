@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "exe.h"
+#include "vfs_host.h"
 
 static int fails;
 #define CHECK(c, ...) do { if (c) printf("  ok   " __VA_ARGS__); else { printf("  FAIL " __VA_ARGS__); fails++; } printf("\n"); } while (0)
@@ -94,6 +95,7 @@ static void destroy_cell(uint32_t *c)
 
 int main(void)
 {
+    vfs_mount_default();                                                  /* ./cd or $OPENRF_DATA */
     if (!exe_load()) { fprintf(stderr, "%s\n", exe_error()); return 1; }   /* tables from RFIRE.BIN */
     static World w;
     const char *MAP = "WORLDS/1PLAYER/LEVEL1/RFMAP001.RFM";

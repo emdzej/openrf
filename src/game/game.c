@@ -5,6 +5,7 @@
 #include "rules.h"
 #include "../world.h"
 #include "../assets.h"
+#include "../vfs.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -60,7 +61,7 @@ static void build_jitter(uint32_t seed)
 bool game_load(World *w, const char *rel)
 {
     size_t sz;
-    uint8_t *d = file_read_all(rel, &sz);
+    uint8_t *d = vfs_read_all(rel, &sz);
     if (!d || sz < 0x50) { free(d); return false; }
     uint32_t doff = rd32(d + 0x48);
     int mw = rd16(d + 8), mh = rd16(d + 10);

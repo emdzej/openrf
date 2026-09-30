@@ -1,51 +1,8 @@
 #include "assets.h"
-#include <dirent.h>
+#include "vfs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
-
-static char root[1024] = "cd";
-static char pathbuf[2048];
-
-void assets_set_root(const char *r) { snprintf(root, sizeof root, "%s", r); }
-
-/* Resolve rel path component by component, matching case-insensitively
-   (the disc uses upper case, the game's code uses mixed case). */
-const char *assets_path(const char *rel)
-{
-    char cur[2048];
-    snprintf(cur, sizeof cur, "%s", root);
-    char tmp[1024];
-    snprintf(tmp, sizeof tmp, "%s", rel);
-    for (char *p = tmp; *p; p++) if (*p == '\\') *p = '/';
-    for (char *tok = strtok(tmp, "/"); tok; tok = strtok(NULL, "/")) {
-        DIR *d = opendir(cur);
-        const char *match = tok;
-        struct dirent *e;
-        while (d && (e = readdir(d)))
-            if (!strcasecmp(e->d_name, tok)) { match = e->d_name; break; }
-        size_t n = strlen(cur);
-        snprintf(cur + n, sizeof cur - n, "/%s", match);
-        if (d) closedir(d);
-    }
-    snprintf(pathbuf, sizeof pathbuf, "%s", cur);
-    return pathbuf;
-}
-
-uint8_t *file_read_all(const char *rel, size_t *size)
-{
-    FILE *f = fopen(assets_path(rel), "rb");
-    if (!f) return NULL;
-    fseek(f, 0, SEEK_END);
-    long n = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    uint8_t *buf = malloc((size_t)n);
-    if (fread(buf, 1, (size_t)n, f) != (size_t)n) { free(buf); fclose(f); return NULL; }
-    fclose(f);
-    if (size) *size = (size_t)n;
-    return buf;
-}
 
 static uint32_t rd32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
 static uint16_t rd16(const uint8_t *p) { return (uint16_t)(p[0] | p[1] << 8); }
@@ -53,7 +10,7 @@ static uint16_t rd16(const uint8_t *p) { return (uint16_t)(p[0] | p[1] << 8); }
 bool image_load_bmp8(const char *rel, Image8 *out)
 {
     size_t sz;
-    uint8_t *d = file_read_all(rel, &sz);
+    uint8_t *d = vfs_read_all(rel, &sz);
     if (!d) return false;
     bool ok = false;
     if (sz >= 54 && d[0] == 'B' && d[1] == 'M' && rd16(d + 28) == 8 && rd32(d + 30) == 0) {

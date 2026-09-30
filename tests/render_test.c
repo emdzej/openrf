@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include "../src/exe.h"
+#include "../src/vfs_host.h"
 
 #ifndef TOWN_X
 #define TOWN_X 1808   /* cell (56,45) centre, as tools/render_cmp.py TOWN */
@@ -307,7 +308,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--search") && i + 3 < argc) { smap = argv[++i]; smode = argv[++i]; starget = argv[++i]; }
         else root = argv[i];
     }
-    assets_set_root(root);
+    if (strcmp(root, "cd") ? !vfs_mount_path(root) : !vfs_mount_default()) { fprintf(stderr, "cannot mount %s\n", root); return 1; }
     if (!exe_load()) { fprintf(stderr, "%s\n", exe_error()); return 1; }   /* tables from RFIRE.BIN */
     SpriteBank *sb = malloc(sizeof *sb);
     if (!sprites_load(sb, "ART/ART.CAR")) { fprintf(stderr, "cannot load ART.CAR from %s\n", root); return 1; }
