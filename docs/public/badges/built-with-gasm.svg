@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="20" viewBox="0 0 128 20" role="img" aria-label="built with gasm">
   <title>built with gasm</title>
+  <!-- Temporary; replace with gasm's official badge when published. -->
   <!-- Logo mark: gasm's favicon (MIT, github.com/emdzej/gasm), redrawn on a 16 px pixel grid. -->
   <linearGradient id="s" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>

@@ -241,7 +241,10 @@ VitePress in `docs/` (pnpm, `cd docs && pnpm build`). Camouflage colour theme in
 `docs/.vitepress/theme/camo.css` (sampled from the game's status bar). **No emojis**, no version
 menu (the GitHub link is enough). Describe OpenRF as cross-platform: native on macOS; Linux, Windows and
 the browser through gasm; native SDL builds for Linux and Windows planned. The gasm badge is
-`docs/public/badges/built-with-gasm.svg` (logo redrawn from gasm's MIT favicon). Screenshots come from `tools/screenshots.sh`.
+`docs/public/badges/built-with-gasm.svg` (logo redrawn from gasm's MIT favicon), a temporary local copy:
+when gasm publishes its official "built with gasm" badge, switch every reference (`/badges/built-with-gasm.svg`
+in the site and play page, `https://openrf.emdzej.pl/badges/built-with-gasm.svg` in the README) to its URL and
+delete ours. Screenshots come from `tools/screenshots.sh`.
 
 ## gasm bundles
 
