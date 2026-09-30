@@ -56,7 +56,8 @@ Everything at runtime comes from the user's CD. For development, extract it to `
 `RFIRE.BIN`. If `./cd` exists at configure time, the build symlinks it into the bundle as
 `Contents/Resources/data`. The app also runs straight from a disc image: pass a `.cue`, raw `.bin`
 or `.iso` as the first argument, or put `data.cue|.bin|.iso` in `Contents/Resources` (the user's image
-is `../Return Fire (Europe) (En,Fr,De,Es,It).cue`/`.bin`, MODE1/2352). Tests read `./cd` or
+lives outside the repo, in `~/Downloads/Return Fire (Europe) (En,Fr,De,Es,It)/` as `.cue` + `.bin`,
+MODE1/2352; export `OPENRF_IMAGE=<path to the .bin>` for the commands below). Tests read `./cd` or
 `OPENRF_DATA=<dir|image>`.
 
 **All data access goes through `src/vfs.h`** (`vfs_read_all`, `vfs_open` + `vfs_read_at` for
@@ -158,7 +159,7 @@ for the core's `getenv`). Docs: `docs/guide/gasm.md`.
 
 ```sh
 RUN=~/Projects/my/gasm/runners/native/target/release/gasm-run
-IMG="../Return Fire (Europe) (En,Fr,De,Es,It).bin"
+IMG="$OPENRF_IMAGE"
 $RUN build-gasm/openrf.wasm --asset "cd=$IMG" --headless 689 --screenshot /tmp/g.png \
   --param skip_intro=1 --param play=1 --param demo=fire     # = OPENRF_DEMO=fire OPENRF_SHOT_MS=11000
 node ~/Projects/my/gasm/runners/web/headless.mjs build-gasm/openrf.wasm --asset "cd=$IMG" --headless 689 \
@@ -223,8 +224,9 @@ without importing, disc image; the fire and 2p demos equal to `gasm-run`) and sa
   `0xff00` for up/down) or vehicles move at 1/256 speed.
 - **Variable timestep.** Frames advance by whole 16 ms ticks (0–12). Anything future-networked
   must stay deterministic: integer maths, the MSVC `rand()` port, no wall-clock reads in the sim.
-- **Paths with parentheses.** The dev checkout lives under `Return Fire (Europe) (…)`; CMake
-  custom commands need `VERBATIM`, shell snippets need quoting.
+- **Paths with spaces and parentheses.** Disc images are typically named like
+  `Return Fire (Europe) (En,Fr,De,Es,It).bin`, and users keep checkouts in such folders too; CMake custom
+  commands need `VERBATIM`, shell snippets need quoting.
 - **Fat binaries.** `otool -L` prints per-architecture header lines; filter indented lines only.
 - **One poll per step.** `plat_poll` runs before every state step, so edge-triggered input
   (`plat_any_key_pressed`) is consumed at each state change, as the old nested loops did. A backend must

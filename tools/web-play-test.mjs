@@ -7,7 +7,7 @@
 //
 //   cd docs && pnpm build && cd ..
 //   node tools/web-play-test.mjs [cd folder] [disc image] [out dir]
-// Defaults: ./cd, ../Return Fire (Europe) (En,Fr,De,Es,It).bin, /tmp/openrf-play. Needs Chrome
+// Defaults: ./cd, $OPENRF_IMAGE, /tmp/openrf-play. Needs Chrome
 // (CHROME=<binary> to override). Serves docs/.vitepress/dist on :8792. Never opens a window.
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -17,7 +17,8 @@ import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const CD = resolve(process.argv[2] ?? join(repo, 'cd'));
-const IMG = resolve(process.argv[3] ?? join(repo, '..', 'Return Fire (Europe) (En,Fr,De,Es,It).bin'));
+const imgArg = process.argv[3] ?? process.env.OPENRF_IMAGE;   // the user's disc image (.bin/.iso), optional
+const IMG = imgArg ? resolve(imgArg) : '';
 const OUT = resolve(process.argv[4] ?? '/tmp/openrf-play');
 const DIST = join(repo, 'docs/.vitepress/dist');
 const PORT = 8792, DEBUG = 9335;
