@@ -5,13 +5,16 @@
 # Then:
 #   cmake -S . -B build-gasm -DOPENRF_PLATFORM=gasm -DCMAKE_BUILD_TYPE=Release \
 #     -DCMAKE_TOOLCHAIN_FILE=.deps/gasm-c-sdk/cmake/gasm-toolchain.cmake -DWASI_SDK_PREFIX="$PWD/.deps/wasi-sdk"
+#   tools/fetch-gasm-sdk.sh --version  -> prints GASM_VERSION and exits (tools/fetch-gasm-runner.sh, release jobs)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WASI_SDK_VERSION=${WASI_SDK_VERSION:-34}
-# The one place the gasm SDK version is set (CI, release and Pages builds all call this script).
+# The one place the gasm version is set (CI, release and Pages builds all call this script; the gasm
+# bundles' runners too, via --version).
 # Keep it in step with @emdzej/gasm-host in docs/package.json (the browser player's runner).
 # 0.3.0 is the minimum runner for folders (--asset-dir), file-backed assets, Worker mode and keymaps.
 GASM_VERSION=${GASM_VERSION:-0.3.0}
+if [ "${1:-}" = --version ]; then echo "$GASM_VERSION"; exit 0; fi
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)  PLAT=arm64-macos ;;
   Darwin-x86_64) PLAT=x86_64-macos ;;
