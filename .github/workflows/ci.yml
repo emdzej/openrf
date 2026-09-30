@@ -1,6 +1,6 @@
 name: CI
 
-# Builds the app and every test binary on each push / PR.
+# Builds the app and every test binary, and the gasm module openrf.wasm, on each push / PR.
 # The tests need the original game data (not redistributable), so CI only
 # compiles them; run them locally with the extracted CD in ./cd.
 
@@ -30,3 +30,29 @@ jobs:
 
       - name: check Python tools compile
         run: python3 -m py_compile tools/*.py
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: fetch wasi-sdk and the gasm C SDK
+        run: tools/fetch-gasm-sdk.sh
+
+      - name: configure (gasm)
+        run: >-
+          cmake -S . -B build-gasm -DOPENRF_PLATFORM=gasm -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE=.deps/gasm-c-sdk/cmake/gasm-toolchain.cmake
+          -DWASI_SDK_PREFIX="$PWD/.deps/wasi-sdk"
+
+      - name: build openrf.wasm
+        run: |
+          cmake --build build-gasm -j
+          ls -l build-gasm/openrf.wasm
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: openrf-wasm
+          path: build-gasm/openrf.wasm
+          retention-days: 14

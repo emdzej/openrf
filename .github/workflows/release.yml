@@ -2,7 +2,8 @@ name: Release
 
 # Triggered by plain semver tags (no "v" prefix): `git tag 0.1.0 && git push origin 0.1.0`.
 # Builds a universal (arm64 + x86_64) Return Fire.app with SDL3 linked
-# statically, zips it and attaches it to a GitHub Release.
+# statically and the gasm module openrf-<version>.wasm, and attaches both (with
+# SHA-256 files) to a GitHub Release.
 
 on:
   push:
@@ -61,13 +62,54 @@ jobs:
           path: OpenRF-*.zip*
           retention-days: 14
 
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: version
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then v="$GITHUB_REF_NAME"; else v="0.0.0-snapshot.${GITHUB_SHA::7}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: fetch wasi-sdk and the gasm C SDK
+        run: tools/fetch-gasm-sdk.sh
+
+      - name: build openrf.wasm
+        run: |
+          cmake -S . -B build-gasm -DOPENRF_PLATFORM=gasm -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=.deps/gasm-c-sdk/cmake/gasm-toolchain.cmake -DWASI_SDK_PREFIX="$PWD/.deps/wasi-sdk"
+          cmake --build build-gasm -j
+          name="openrf-${{ steps.ver.outputs.version }}.wasm"
+          cp build-gasm/openrf.wasm "$name"
+          sha256sum "$name" > "$name.sha256"
+          ls -l "$name"
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: openrf-wasm
+          path: openrf-*.wasm*
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [macos, wasm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+          merge-multiple: true
+
       - name: create release
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
-          gh release create "$GITHUB_REF_NAME"
-          "${{ steps.pkg.outputs.zip }}" "${{ steps.pkg.outputs.zip }}.sha256"
-          --title "OpenRF ${{ steps.ver.outputs.version }}"
+          gh release create "$GITHUB_REF_NAME" artifacts/*
+          --title "OpenRF $GITHUB_REF_NAME"
           --generate-notes
           --notes-file .github/release-notes.md
