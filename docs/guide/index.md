@@ -21,14 +21,14 @@ and plays like the original, but runs natively on modern Macs.
 
 | Area | State |
 |---|---|
-| Intro and victory movies, title screen | ✅ |
-| Music director (the orchestral score) and sound effects | ✅ |
-| Perspective renderer with 3D buildings and vehicles | ✅ |
-| All four vehicles, bunker lift, fuel and ammo | ✅ |
-| Weapons, explosions, damage, debris | ✅ |
-| Turrets, drones, submarine, soldiers, gates, flag, mines | ✅ |
-| Winning, losing, level progression, high scores | ✅ |
-| Two-player split screen | ✅ |
+| Intro and victory movies, title screen | Done |
+| Music director (the orchestral score) and sound effects | Done |
+| Perspective renderer with 3D buildings and vehicles | Done |
+| All four vehicles, bunker lift, fuel and ammo | Done |
+| Weapons, explosions, damage, debris | Done |
+| Turrets, drones, submarine, soldiers, gates, flag, mines | Done |
+| Winning, losing, level progression, high scores | Done |
+| Two-player split screen | Done |
 | Network play | planned |
 
 Next: [install OpenRF](./install).

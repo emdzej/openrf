@@ -20,17 +20,13 @@ hero:
       link: /internals/
 
 features:
-  - icon: 🎯
-    title: Faithful
+  - title: Faithful
     details: Game logic, physics, AI and rendering are ported function by function from the original executable, in the same fixed-point maths. The renderer is verified pixel-identical against a reference implementation.
-  - icon: 💾
-    title: Your original data
+  - title: Your original data
     details: Reads the sprites, maps, movies, sound effects and the orchestral score straight from the Return Fire CD. No assets are included or converted.
-  - icon: 🍏
-    title: Native
+  - title: Native
     details: A single universal app (arm64 + x86_64) built with C11 and SDL3. No Wine, no emulator, no virtual machine.
-  - icon: 🎬
-    title: Complete experience
+  - title: Complete experience
     details: Intro movies, the bunker lift, all four vehicles, turrets, drones, the submarine, soldiers, the flag hunt, victory movies and high scores.
 ---
 

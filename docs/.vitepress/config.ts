@@ -10,7 +10,7 @@ export default defineConfig({
 
   head: [
     ["link", { rel: "icon", href: "/favicon.png", type: "image/png" }],
-    ["meta", { name: "theme-color", content: "#b45309" }],
+    ["meta", { name: "theme-color", content: "#727431" }],
     ["meta", { property: "og:title", content: "OpenRF — Return Fire, native on macOS" }],
     ["meta", { property: "og:description", content: "A faithful, from-scratch reimplementation of Return Fire for Apple Silicon and Intel Macs." }],
     ["meta", { property: "og:image", content: "https://openrf.emdzej.pl/screenshots/tank-fire.png" }],

@@ -44,7 +44,8 @@ jobs:
           app="build/Return Fire.app"
           lipo -info "$app/Contents/MacOS/Return Fire"
           # Fail if anything outside the OS is linked (the .app must be self-contained).
-          if otool -L "$app/Contents/MacOS/Return Fire" | tail -n +2 | grep -vE '^\s*(/usr/lib/|/System/)'; then
+          # (dependency lines are indented; the per-architecture headers of a fat binary are not)
+          if otool -L "$app/Contents/MacOS/Return Fire" | grep -E '^\s' | grep -vE '^\s*(/usr/lib/|/System/)'; then
             echo "unexpected non-system library dependency"; exit 1
           fi
           codesign --force --deep --sign - "$app"   # ad-hoc signature (not notarized)
