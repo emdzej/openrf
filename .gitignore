@@ -25,3 +25,6 @@ docs/.vitepress/dist/
 # Python
 __pycache__/
 *.pyc
+
+# Downloaded toolchains (tools/fetch-gasm-sdk.sh)
+/.deps/

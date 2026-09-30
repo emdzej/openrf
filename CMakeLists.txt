@@ -6,6 +6,32 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 11.0 CACHE STRING "Minimum macOS version")
 project(OpenRF VERSION 0.1.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 
+# The portable core: everything except the host backends. Built without SDL (no include path, no
+# library), so a platform dependency can't creep in; a gasm build compiles the same file list.
+file(GLOB CORE_SRC src/*.c src/render/*.c src/game/*.c)
+set(HOST_SRC src/platform_sdl.c src/vfs_host.c src/storage_file.c)
+foreach(f ${HOST_SRC} src/platform_gasm.c)
+  list(REMOVE_ITEM CORE_SRC "${CMAKE_SOURCE_DIR}/${f}")
+endforeach()
+
+# Platform backend: sdl (default: the macOS app + tests) or gasm (openrf.wasm, a gasm guest; configure with
+# gasm's C SDK toolchain, see docs/guide/gasm.md):
+#   cmake -S . -B build-gasm -DOPENRF_PLATFORM=gasm -DCMAKE_BUILD_TYPE=Release \
+#     -DCMAKE_TOOLCHAIN_FILE=$GASM/sdk/c/cmake/gasm-toolchain.cmake [-DWASI_SDK_PREFIX=<wasi-sdk>]
+set(OPENRF_PLATFORM sdl CACHE STRING "Platform backend: sdl or gasm")
+set_property(CACHE OPENRF_PLATFORM PROPERTY STRINGS sdl gasm)
+if(OPENRF_PLATFORM STREQUAL "gasm")
+  include(Gasm)   # from the gasm toolchain file's module path
+  # -O2: ~300 KB and ~20% faster than -Oz (~250 KB); -O3 is larger and not measurably faster.
+  set(OPENRF_GASM_OPT "-O2" CACHE STRING "Optimisation flag for openrf.wasm")
+  gasm_add_game(openrf ${CORE_SRC} src/platform_gasm.c)
+  set_target_properties(openrf PROPERTIES OUTPUT_NAME openrf)
+  target_compile_options(openrf PRIVATE -Wall -Wextra -Wno-unused-parameter ${OPENRF_GASM_OPT})
+  # The core keeps some large arrays on the stack (mixer and decoder scratch): 1 MiB instead of 64 KiB.
+  target_link_options(openrf PRIVATE -Wl,-z,stack-size=1048576 -Wl,--strip-debug)
+  return()
+endif()
+
 # SDL3: system package by default; OPENRF_BUNDLED_SDL=ON builds it from source and links it
 # statically (used for universal release builds, so the .app needs no external libraries).
 option(OPENRF_BUNDLED_SDL "Build SDL3 from source and link statically" OFF)
@@ -20,13 +46,6 @@ if(OPENRF_BUNDLED_SDL)
 else()
   find_package(SDL3 REQUIRED CONFIG)
 endif()
-# The portable core: everything except the host backends. Built without SDL (no include path, no
-# library), so a platform dependency can't creep in; a gasm build compiles the same file list.
-file(GLOB CORE_SRC src/*.c src/render/*.c src/game/*.c)
-set(HOST_SRC src/platform_sdl.c src/vfs_host.c src/storage_file.c)
-foreach(f ${HOST_SRC})
-  list(REMOVE_ITEM CORE_SRC "${CMAKE_SOURCE_DIR}/${f}")
-endforeach()
 add_library(openrf_core OBJECT ${CORE_SRC})
 target_compile_options(openrf_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
 # SDL3 backend + host filesystem backends (vfs_host.c, storage_file.c: POSIX).
