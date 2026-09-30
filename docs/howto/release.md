@@ -14,5 +14,4 @@ it depends only on system libraries, signs it ad hoc, and attaches
 Run it manually from the Actions tab (*Release → Run workflow*) to get a snapshot build as a
 workflow artifact without publishing a release.
 
-Remember to bump `project(OpenRF VERSION …)` in `CMakeLists.txt` and the version in the docs
-navigation.
+Remember to bump `project(OpenRF VERSION …)` in `CMakeLists.txt` first.

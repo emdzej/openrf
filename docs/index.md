@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: OpenRF
-  text: Return Fire, native on macOS
-  tagline: A faithful, from-scratch reimplementation of the 1996 classic for Apple Silicon and Intel Macs — using the data from your own CD.
+  text: Return Fire, native again
+  tagline: A faithful, from-scratch reimplementation of the 1996 classic, using the data from your own CD. Runs on macOS today; Windows and Linux are next.
   image:
     src: /screenshots/tank-fire.png
     alt: A tank firing at a building in OpenRF
@@ -25,7 +25,7 @@ features:
   - title: Your original data
     details: Reads the sprites, maps, movies, sound effects and the orchestral score straight from the Return Fire CD. No assets are included or converted.
   - title: Native
-    details: A single universal app (arm64 + x86_64) built with C11 and SDL3. No Wine, no emulator, no virtual machine.
+    details: Portable C11 and SDL3 with no emulator, no Wine and no virtual machine. Available now as a universal macOS app (Apple Silicon and Intel); Windows and Linux builds are in the works.
   - title: Complete experience
     details: Intro movies, the bunker lift, all four vehicles, turrets, drones, the submarine, soldiers, the flag hunt, victory movies and high scores.
 ---

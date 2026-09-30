@@ -1,4 +1,4 @@
-**OpenRF** is a native macOS reimplementation of Return Fire (1996). It needs the
+**OpenRF** is a native reimplementation of Return Fire (1996); this release is the macOS build. It needs the
 game data from your own Return Fire CD, which is not included.
 
 1. Download `OpenRF-…-macos-universal.zip` and unzip it.

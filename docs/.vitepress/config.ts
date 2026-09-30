@@ -2,7 +2,7 @@ import { defineConfig } from "vitepress";
 
 export default defineConfig({
   title: "OpenRF",
-  description: "A native macOS reimplementation of Return Fire (1996), using the data from your own CD.",
+  description: "A native, cross-platform reimplementation of Return Fire (1996), using the data from your own CD.",
   cleanUrls: true,
   lastUpdated: true,
   srcExclude: ["CONTEXT.md", "README.md"],
@@ -11,8 +11,8 @@ export default defineConfig({
   head: [
     ["link", { rel: "icon", href: "/favicon.png", type: "image/png" }],
     ["meta", { name: "theme-color", content: "#727431" }],
-    ["meta", { property: "og:title", content: "OpenRF — Return Fire, native on macOS" }],
-    ["meta", { property: "og:description", content: "A faithful, from-scratch reimplementation of Return Fire for Apple Silicon and Intel Macs." }],
+    ["meta", { property: "og:title", content: "OpenRF — Return Fire, native again" }],
+    ["meta", { property: "og:description", content: "A faithful, from-scratch reimplementation of Return Fire. macOS today, Windows and Linux next." }],
     ["meta", { property: "og:image", content: "https://openrf.emdzej.pl/screenshots/tank-fire.png" }],
     ["meta", { property: "og:url", content: "https://openrf.emdzej.pl/" }],
   ],
@@ -26,13 +26,6 @@ export default defineConfig({
       { text: "How-tos", link: "/howto/build-from-source", activeMatch: "/howto/" },
       { text: "Internals", link: "/internals/", activeMatch: "/(internals|architecture|render|game|car|rfm|stm)" },
       { text: "Gallery", link: "/gallery" },
-      {
-        text: "0.1.0",
-        items: [
-          { text: "Releases", link: "https://github.com/emdzej/openrf/releases" },
-          { text: "Source", link: "https://github.com/emdzej/openrf" },
-        ],
-      },
     ],
 
     sidebar: {

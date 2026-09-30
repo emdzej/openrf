@@ -1,12 +1,13 @@
-# OpenRF — native macOS Return Fire
+# OpenRF — Return Fire, native again
 
 **Docs, user guide and screenshots: [openrf.emdzej.pl](https://openrf.emdzej.pl)** ·
 [Download](https://github.com/emdzej/openrf/releases)
 
 ![OpenRF](docs/public/screenshots/tank-fire.png)
 
-A from-scratch reimplementation of **Return Fire** (Silent Software, Windows 95 edition, 1996)
-for Apple Silicon Macs. It contains no original code, assets or data: it reads the data files, and
+A from-scratch, portable reimplementation of **Return Fire** (Silent Software, Windows 95
+edition, 1996) in C11 and SDL3. macOS (universal: Apple Silicon and Intel) is supported today;
+Windows and Linux are planned. It contains no original code, assets or data: it reads the data files, and
 the tables of the original game program (`RFIRE.BIN`: 3D models, object and sound tables), directly
 from your own copy of the game CD.
 
