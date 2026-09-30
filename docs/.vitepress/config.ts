@@ -5,7 +5,7 @@ export default defineConfig({
   description: "A native, cross-platform reimplementation of Return Fire (1996), using the data from your own CD.",
   cleanUrls: true,
   lastUpdated: true,
-  srcExclude: ["CONTEXT.md", "README.md"],
+  srcExclude: ["CONTEXT.md", "README.md", "AGENTS.md"],
   sitemap: { hostname: "https://openrf.emdzej.pl" },
 
   head: [

@@ -1,5 +1,7 @@
 # OpenRF — native macOS reimplementation of Return Fire (Win95, 1996, Silent Software)
 
+> Start with [`AGENTS.md`](../AGENTS.md) at the repository root (rules, build/test, traps); this file keeps the original per-format working notes.
+
 - Original disc extracted at `cd/` (read-only reference; never modify).
 - Game binary: `cd/RFIRE.BIN` (PE32 x86, DirectDraw/DirectSound). `cd/RFIRE.EXE` is only a language launcher.
 - Ghidra project: `returnfire`, program `rfire_game.exe`. CLI: `ghidra decompile 0xADDR --project returnfire --program rfire_game.exe`,
