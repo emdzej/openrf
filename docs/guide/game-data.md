@@ -41,6 +41,13 @@ Given a `.cue`, it opens the image named on its `FILE` line (or the `.bin` of th
 runs exactly as from the extracted folder. To extract the files anyway, see
 [Extract the CD image](/howto/extract-cd).
 
+## On gasm and in the browser
+
+`gasm-run openrf.wasm --asset-dir <folder>` takes the CD itself, a mounted image or a copy of it, and
+`--asset cd=<image>` a `.bin` or `.iso` ([Running on gasm](./gasm)). The
+[browser player](/play/){target="_self"} asks for the same folder (or image) and keeps a copy in the
+browser's storage for this site. To use an image as a folder, [mount it](/howto/extract-cd#mount-it).
+
 ## Which editions work
 
 OpenRF targets the **Windows 95 edition** (`RFIRE.EXE` + `RFIRE.BIN`, `ART/ART.CAR`, `.RFM` maps,

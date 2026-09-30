@@ -73,6 +73,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then v="$GITHUB_REF_NAME"; else v="0.0.0-snapshot.${GITHUB_SHA::7}"; fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
+      # SDK version: GASM_VERSION in tools/fetch-gasm-sdk.sh (see the note there).
       - name: fetch wasi-sdk and the gasm C SDK
         run: tools/fetch-gasm-sdk.sh
 

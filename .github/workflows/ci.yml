@@ -36,6 +36,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The SDK version lives in tools/fetch-gasm-sdk.sh (GASM_VERSION): gasm 0.2.0's C SDK, which is
+      # unchanged in 0.3.0. Running the module from a folder (--asset-dir) needs a gasm 0.3.0 runner.
       - name: fetch wasi-sdk and the gasm C SDK
         run: tools/fetch-gasm-sdk.sh
 
