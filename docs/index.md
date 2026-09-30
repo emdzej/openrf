@@ -4,7 +4,7 @@ layout: home
 hero:
   name: OpenRF
   text: Return Fire, native again
-  tagline: A faithful, from-scratch reimplementation of the 1996 classic, using the data from your own CD. Runs on macOS and in your browser today; Windows and Linux are next.
+  tagline: A faithful, from-scratch reimplementation of the 1996 classic, using the data from your own CD. Runs natively on macOS, and on Linux, Windows and in your browser through the gasm WebAssembly runtime.
   image:
     src: /screenshots/tank-fire.png
     alt: A tank firing at a building in OpenRF
@@ -29,7 +29,11 @@ features:
   - title: Your original data
     details: Reads the sprites, maps, movies, sound effects and the orchestral score straight from the Return Fire CD. No assets are included or converted.
   - title: Native
-    details: Portable C11 and SDL3 with no emulator, no Wine and no virtual machine. Available now as a universal macOS app (Apple Silicon and Intel); Windows and Linux builds are in the works.
+    details: Portable C11 and SDL3 with no emulator, no Wine and no virtual machine. Available now as a universal macOS app (Apple Silicon and Intel); native Windows and Linux builds are in the works.
+  - title: Runs on gasm
+    details: One openrf.wasm for macOS, Linux, Windows and the browser, on the gasm WebAssembly game runtime. Deterministic and pixel-identical to the native app, with ready-to-run bundles for each system.
+    link: /guide/gasm
+    linkText: Running on gasm
   - title: In the browser
     details: The same engine as a WebAssembly module on the gasm runtime. Choose your CD folder once and play in Chrome, Edge, Firefox or Safari, with sound, gamepads and two players on one keyboard.
     link: /play/
@@ -40,6 +44,16 @@ features:
 ---
 
 <div class="vp-doc" style="max-width: 1152px; margin: 48px auto 0; padding: 0 24px;">
+
+## Built with gasm
+
+<p><a href="https://gasm.emdzej.pl"><img src="/badges/built-with-gasm.svg" alt="built with gasm" width="128" height="20"></a></p>
+
+The Linux, Windows and browser versions, and `Return Fire (gasm).app` on the Mac, are one WebAssembly
+module, `openrf.wasm`, running on [gasm](https://gasm.emdzej.pl), a portable game runtime. It is the same
+engine as the native app with a different platform layer: the same inputs give the same frames and sound
+on every runner, checked hash for hash. [Download a bundle](/guide/install), [play in the browser](/play/){target="_self"}
+or read [Running on gasm](/guide/gasm).
 
 ## Screenshots
 

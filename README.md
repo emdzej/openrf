@@ -1,16 +1,36 @@
 # OpenRF — Return Fire, native again
 
 **Docs, user guide and screenshots: [openrf.emdzej.pl](https://openrf.emdzej.pl)** ·
-[Download](https://github.com/emdzej/openrf/releases)
+[Download](https://github.com/emdzej/openrf/releases) ·
+[Play in the browser](https://openrf.emdzej.pl/play/)
+
+[![built with gasm](https://openrf.emdzej.pl/badges/built-with-gasm.svg)](https://gasm.emdzej.pl)
 
 ![OpenRF](docs/public/screenshots/tank-fire.png)
 
 A from-scratch, portable reimplementation of **Return Fire** (Silent Software, Windows 95
 edition, 1996) in C11. It runs as a native macOS app (SDL3, universal: Apple Silicon and Intel) and as
 `openrf.wasm`, a module for the [gasm](https://gasm.emdzej.pl) WebAssembly game runtime (macOS, Linux,
-Windows); native Windows and Linux builds are planned. It contains no original code, assets or data: it reads the data files, and
+Windows, browser); native SDL builds for Windows and Linux are planned. It contains no original code, assets or data: it reads the data files, and
 the tables of the original game program (`RFIRE.BIN`: 3D models, object and sound tables), directly
 from your own copy of the game CD.
+
+## Download
+
+From the [releases](https://github.com/emdzej/openrf/releases) (each file with a `.sha256`; none contains game
+data, you need your own Return Fire CD):
+
+| File | What |
+|---|---|
+| `OpenRF-<version>-macos-universal.zip` | Native macOS app (SDL3, Apple Silicon and Intel), recommended on a Mac |
+| `openrf-gasm-<version>-macos-universal.zip` | `Return Fire (gasm).app`: `openrf.wasm` with the bundled `gasm-run` |
+| `openrf-gasm-<version>-linux-x86_64.tar.gz`, `-linux-arm64.tar.gz` | Linux gasm bundle, `./openrf.sh` |
+| `openrf-gasm-<version>-windows-x86_64.zip` | Windows gasm bundle, `OpenRF.cmd` |
+| `openrf-<version>.wasm` | The module alone, for your own `gasm-run` 0.3.0+ |
+
+The bundle launchers ask for the CD once (a folder, a mounted image, or a raw `.bin` / `.iso`) and remember
+it; `--change-cd` picks another. First-run notes (Gatekeeper, SmartScreen) and details:
+[Installing](https://openrf.emdzej.pl/guide/install).
 
 ## Play in the browser
 

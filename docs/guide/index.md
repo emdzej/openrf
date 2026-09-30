@@ -13,9 +13,8 @@ and plays like the original, but runs natively on modern computers.
 
 ## What you need
 
-- A Mac running macOS 11 or newer (Apple Silicon or Intel), any system with the
-  [gasm](./gasm) runtime (macOS, Linux, Windows), or a web browser ([Play](/play/){target="_self"}). Native Windows and Linux builds are
-  [planned](#platforms).
+- A Mac running macOS 11 or newer (Apple Silicon or Intel), a Linux (x86_64 or arm64) or Windows 10/11
+  (x86_64) PC for the [gasm bundles](./install), or a web browser ([Play](/play/){target="_self"}).
 - Your own copy of **Return Fire for Windows 95** (the CD, or a BIN/CUE or ISO image of it).
   OpenRF does not include any of the original game's files.
 
@@ -40,10 +39,14 @@ implementations: SDL3 (the native app) and gasm (a WebAssembly module, which als
 
 | Platform | State |
 |---|---|
-| macOS 11+ (universal: Apple Silicon and Intel) | Available |
-| gasm runtime (`openrf.wasm`: macOS, Linux, Windows via `gasm-run` 0.3+) | Available, see [Running on gasm](./gasm) |
-| Web browser (`openrf.wasm` on gasm's browser host: Chrome, Edge, Firefox, Safari) | Available: [Play](/play/){target="_self"} |
-| Windows | Planned |
-| Linux | Planned |
+| macOS 11+ (universal: Apple Silicon and Intel) | Available: the native app (recommended) and `Return Fire (gasm).app` |
+| Linux x86_64 and arm64 | Available as a gasm bundle (`openrf.sh`) |
+| Windows 10/11 x86_64 | Available as a gasm bundle (`OpenRF.cmd`) |
+| Web browser (Chrome, Edge, Firefox, Safari) | Available: [Play](/play/){target="_self"} |
+| Any gasm runner (`openrf.wasm`, `gasm-run` 0.3+) | Available, see [Running on gasm](./gasm) |
+| Native SDL builds for Linux and Windows | Planned |
+
+The gasm bundles are the same `openrf.wasm` with the released `gasm-run` and a launcher; see
+[Installing](./install) for the downloads.
 
 Next: [install OpenRF](./install).

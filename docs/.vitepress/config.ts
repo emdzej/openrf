@@ -95,7 +95,7 @@ export default defineConfig({
 
     footer: {
       message:
-        "OpenRF is released under the GPL-3.0. Return Fire is © 1995–1996 Silent Software / Prolific. OpenRF contains no original code or assets.",
+        "OpenRF is released under the GPL-3.0. Return Fire is © 1995–1996 Silent Software / Prolific. OpenRF contains no original code or assets. The cross-platform and browser builds run on <a href=\"https://gasm.emdzej.pl\">gasm</a>.",
     },
   },
 });

@@ -1,5 +1,7 @@
 # Running on gasm
 
+<a href="https://gasm.emdzej.pl"><img src="/badges/built-with-gasm.svg" alt="built with gasm" width="128" height="20"></a>
+
 Besides the macOS app, OpenRF builds as **`openrf.wasm`**, a game module for
 [gasm](https://gasm.emdzej.pl), a portable game runtime on WebAssembly. The same file runs in
 gasm's native runner (`gasm-run`, macOS, Linux, Windows) and in its browser runner. It is the same
@@ -10,7 +12,30 @@ On gasm the game runs at a fixed 62.5 frames per second, one tick of the origina
 clock per frame, and everything is deterministic: the same inputs give the same game on every
 runner, which is what future online two-player play builds on.
 
+## Ready-made bundles
+
+The easiest way to run the gasm build is a bundle from the
+[releases](https://github.com/emdzej/openrf/releases): `openrf.wasm`, the released `gasm-run` it was
+tested with, and a launcher that asks for your CD once and remembers it. See
+[Installing](./install) for the first start on each system.
+
+| Bundle | Start with | Saved CD |
+|---|---|---|
+| `openrf-gasm-<version>-macos-universal.zip` | `Return Fire (gasm).app` (hold Option to change the CD) | `~/Library/Application Support/OpenRF/cd-location` |
+| `openrf-gasm-<version>-linux-x86_64.tar.gz`, `-linux-arm64.tar.gz` | `./openrf.sh [CD]` (`--install-desktop` for a menu entry) | `~/.config/openrf/cd-location` |
+| `openrf-gasm-<version>-windows-x86_64.zip` | `OpenRF.cmd [CD]` | `%APPDATA%\OpenRF\cd-location` |
+
+The CD can be a folder (the disc, a mounted image, a copy; passed as `--asset-dir`) or a raw `.bin` or
+`.iso` file (`--asset cd=`); a `.cue` is refused, choose the `.bin` next to it. All three launchers take
+the same options: `--change-cd`, `--forget-cd`, `--help`, `--dry-run` (print the `gasm-run` command
+instead of running it), and pass anything after the CD on to `gasm-run`, for example
+`--param level=12 --param play=1` or `--keymap FILE`. `OPENRF_CD=<CD>` uses a CD for one run without
+saving it. Each bundle has a `README.txt` with the same details, and the licences (OpenRF GPL-3.0,
+gasm-run MIT).
+
 ## Get the files
+
+To use your own `gasm-run` instead of a bundle:
 
 - `openrf-<version>.wasm` from the [releases](https://github.com/emdzej/openrf/releases) (with its
   SHA-256), or build it (below).
