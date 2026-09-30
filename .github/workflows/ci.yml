@@ -1,12 +1,13 @@
 name: CI
 
-# Builds the app and every test binary, and the gasm module openrf.wasm, on each push / PR.
+# Builds the app and every test binary, the gasm module openrf.wasm and the gasm bundles (macOS, Linux,
+# Windows; smoke-tested on macOS and Linux x86_64) on each push / PR.
 # The tests need the original game data (not redistributable), so CI only
 # compiles them; run them locally with the extracted CD in ./cd.
 
 on:
   push:
-    branches: [main]
+    branches: [main, gasm-port]
   pull_request:
 
 concurrency:
@@ -58,3 +59,41 @@ jobs:
           name: openrf-wasm
           path: build-gasm/openrf.wasm
           retention-days: 14
+
+  # The gasm bundles (tools/package-gasm.sh) from the module above, smoke-tested without game data.
+  gasm-bundle-macos:
+    needs: wasm
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: openrf-wasm
+          path: wasm
+      - name: package and smoke test
+        run: |
+          OPENRF_WASM=wasm/openrf.wasm tools/package-gasm.sh "0.0.0-ci.${GITHUB_SHA::7}" macos-universal \
+            "$(tools/fetch-gasm-runner.sh macos-universal)" dist
+          tools/smoke-gasm-bundle.sh dist/openrf-gasm-*-macos-universal.zip
+
+  gasm-bundle-linux:
+    needs: wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: openrf-wasm
+          path: wasm
+      - name: shellcheck the launchers and scripts
+        run: shellcheck tools/*.sh tools/gasm-bundle/*.sh docs/scripts/*.sh
+      - name: package (Linux x86_64 and arm64, Windows x86_64)
+        run: |
+          for p in linux-x86_64 linux-arm64 windows-x86_64; do
+            OPENRF_WASM=wasm/openrf.wasm tools/package-gasm.sh "0.0.0-ci.${GITHUB_SHA::7}" "$p" \
+              "$(tools/fetch-gasm-runner.sh "$p")" dist
+          done
+      - name: runtime libraries (ALSA)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2t64
+      - name: smoke test (Linux x86_64)
+        run: tools/smoke-gasm-bundle.sh dist/openrf-gasm-*-linux-x86_64.tar.gz

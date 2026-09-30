@@ -2,8 +2,11 @@ name: Release
 
 # Triggered by plain semver tags (no "v" prefix): `git tag 0.1.0 && git push origin 0.1.0`.
 # Builds a universal (arm64 + x86_64) Return Fire.app with SDL3 linked
-# statically and the gasm module openrf-<version>.wasm, and attaches both (with
-# SHA-256 files) to a GitHub Release.
+# statically, the gasm module openrf-<version>.wasm, and the gasm bundles (openrf.wasm +
+# the released gasm-run, GASM_VERSION in tools/fetch-gasm-sdk.sh) for macOS, Linux
+# x86_64/arm64 and Windows x86_64, smoke-tests each bundle on its own OS, and attaches
+# everything (with SHA-256 files) to a GitHub Release. workflow_dispatch builds the
+# same files as artifacts only.
 
 on:
   push:
@@ -94,9 +97,130 @@ jobs:
           path: openrf-*.wasm*
           retention-days: 14
 
+  # The gasm bundles: tools/package-gasm.sh with the openrf.wasm built above.
+  gasm-macos:
+    needs: wasm
+    runs-on: macos-latest   # iconutil, codesign (ad hoc)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: openrf-wasm
+          path: wasm
+      - name: package
+        run: |
+          v=$(basename wasm/openrf-*.wasm .wasm); v=${v#openrf-}
+          OPENRF_WASM=$(ls wasm/openrf-*.wasm) tools/package-gasm.sh "$v" macos-universal \
+            "$(tools/fetch-gasm-runner.sh macos-universal)" dist
+      - name: smoke test (no game data)
+        run: tools/smoke-gasm-bundle.sh dist/openrf-gasm-*-macos-universal.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: openrf-gasm-macos-universal
+          path: dist/openrf-gasm-*.zip*
+          retention-days: 14
+
+  gasm-package:
+    needs: wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: openrf-wasm
+          path: wasm
+      - name: package (Linux x86_64 and arm64, Windows x86_64)
+        run: |
+          v=$(basename wasm/openrf-*.wasm .wasm); v=${v#openrf-}
+          for p in linux-x86_64 linux-arm64 windows-x86_64; do
+            OPENRF_WASM=$(ls wasm/openrf-*.wasm) tools/package-gasm.sh "$v" "$p" "$(tools/fetch-gasm-runner.sh "$p")" "dist/$p"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: openrf-gasm-linux-x86_64
+          path: dist/linux-x86_64/*
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        with:
+          name: openrf-gasm-linux-arm64
+          path: dist/linux-arm64/*
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        with:
+          name: openrf-gasm-windows-x86_64
+          path: dist/windows-x86_64/*
+          retention-days: 14
+
+  gasm-smoke-linux:
+    needs: gasm-package
+    strategy:
+      matrix:
+        include:
+          - { arch: x86_64, os: ubuntu-latest }
+          - { arch: arm64, os: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: openrf-gasm-linux-${{ matrix.arch }}
+          path: dist
+      - name: runtime libraries (ALSA)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2t64
+      - name: smoke test (no game data)
+        run: tools/smoke-gasm-bundle.sh dist/openrf-gasm-*-linux-${{ matrix.arch }}.tar.gz
+
+  gasm-smoke-windows:
+    needs: gasm-package
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: openrf-gasm-windows-x86_64
+          path: dist
+      - name: smoke test (no game data)
+        shell: pwsh
+        env:
+          OPENRF_NO_PAUSE: '1'
+        run: |
+          $zip = Get-ChildItem dist/openrf-gasm-*-windows-x86_64.zip | Select-Object -First 1
+          Expand-Archive $zip.FullName -DestinationPath unpacked
+          $d = (Get-ChildItem unpacked -Directory | Select-Object -First 1).FullName
+          foreach ($f in 'gasm-run.exe', 'openrf.wasm', 'OpenRF.cmd', 'openrf.ps1', 'README.txt', 'LICENSE.txt', 'LICENSE-gasm.txt') {
+            if (-not (Test-Path (Join-Path $d $f))) { throw "missing $f" }
+          }
+          # No data: OpenRF's clean error, exit code 1 (not a crash).
+          $out = & "$d\gasm-run.exe" "$d\openrf.wasm" --headless 5 --mute 2>&1 | Out-String
+          $rc = $LASTEXITCODE
+          $out
+          if ($rc -ne 1) { throw "gasm-run without data: exit $rc, expected 1" }
+          if ($out -notmatch 'game data not found') { throw "no 'game data not found' message" }
+          # The launcher (no dialogs: OPENRF_CD / --dry-run, scratch APPDATA).
+          $env:APPDATA = Join-Path $PWD 'appdata'
+          $help = & "$d\OpenRF.cmd" --help | Out-String
+          if ($LASTEXITCODE -ne 0 -or $help -notmatch 'OpenRF') { throw '--help' }
+          New-Item -ItemType Directory -Force cd\ART | Out-Null
+          New-Item -ItemType File -Force cd\RFIRE.BIN, cd\ART\ART.CAR, rf.iso, rf.cue | Out-Null
+          $env:OPENRF_CD = Join-Path $PWD 'cd'
+          $cmd = & "$d\OpenRF.cmd" --dry-run --param level=2 | Out-String
+          $cmd
+          if ($LASTEXITCODE -ne 0 -or $cmd -notmatch '--asset-dir' -or $cmd -notmatch 'level=2') { throw 'dry run with a folder' }
+          $env:OPENRF_CD = Join-Path $PWD 'rf.iso'
+          $cmd = & "$d\OpenRF.cmd" --dry-run | Out-String
+          if ($LASTEXITCODE -ne 0 -or $cmd -notmatch 'cd=') { throw 'dry run with an image' }
+          $env:OPENRF_CD = Join-Path $PWD 'rf.cue'
+          & "$d\OpenRF.cmd" --dry-run
+          if ($LASTEXITCODE -ne 2) { throw '.cue accepted' }
+          $env:OPENRF_CD = ''
+          & "$d\OpenRF.cmd" --dry-run
+          if ($LASTEXITCODE -ne 2) { throw 'no CD, dry run: expected exit 2' }
+          if (Test-Path (Join-Path $env:APPDATA 'OpenRF\cd-location')) { throw 'a dry run saved the CD location' }
+          $global:LASTEXITCODE = 0
+          'PASS'
+
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [macos, wasm]
+    needs: [macos, wasm, gasm-macos, gasm-package, gasm-smoke-linux, gasm-smoke-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
