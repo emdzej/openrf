@@ -95,3 +95,8 @@
 .vp-doc img {
   image-rendering: pixelated;
 }
+
+/* gasm's official "Built for gasm" badge: the variant that matches the theme. */
+.gasm-badge-dark { display: none; }
+.dark .gasm-badge-light { display: none; }
+.dark .gasm-badge-dark { display: inline; }

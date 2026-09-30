@@ -4,7 +4,7 @@
 [Download](https://github.com/emdzej/openrf/releases) ·
 [Play in the browser](https://openrf.emdzej.pl/play/)
 
-[![built with gasm](https://openrf.emdzej.pl/badges/built-with-gasm.svg)](https://gasm.emdzej.pl)
+[![Built for gasm](https://gasm.emdzej.pl/badge/built-for-gasm-flat.svg)](https://gasm.emdzej.pl)
 
 ![OpenRF](docs/public/screenshots/tank-fire.png)
 

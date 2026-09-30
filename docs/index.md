@@ -45,9 +45,9 @@ features:
 
 <div class="vp-doc" style="max-width: 1152px; margin: 48px auto 0; padding: 0 24px;">
 
-## Built with gasm
+## Built for gasm
 
-<p><a href="https://gasm.emdzej.pl"><img src="/badges/built-with-gasm.svg" alt="built with gasm" width="128" height="20"></a></p>
+<p><a class="gasm-badge" href="https://gasm.emdzej.pl"><img class="gasm-badge-light" src="https://gasm.emdzej.pl/badge/built-for-gasm-light.svg" alt="Built for gasm" width="120" height="44"><img class="gasm-badge-dark" src="https://gasm.emdzej.pl/badge/built-for-gasm-dark.svg" alt="Built for gasm" width="120" height="44"></a></p>
 
 The Linux, Windows and browser versions, and `Return Fire (gasm).app` on the Mac, are one WebAssembly
 module, `openrf.wasm`, running on [gasm](https://gasm.emdzej.pl), a portable game runtime. It is the same

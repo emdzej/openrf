@@ -1,6 +1,6 @@
 # Running on gasm
 
-<a href="https://gasm.emdzej.pl"><img src="/badges/built-with-gasm.svg" alt="built with gasm" width="128" height="20"></a>
+<a class="gasm-badge" href="https://gasm.emdzej.pl"><img class="gasm-badge-light" src="https://gasm.emdzej.pl/badge/built-for-gasm-light.svg" alt="Built for gasm" width="120" height="44"><img class="gasm-badge-dark" src="https://gasm.emdzej.pl/badge/built-for-gasm-dark.svg" alt="Built for gasm" width="120" height="44"></a>
 
 Besides the macOS app, OpenRF builds as **`openrf.wasm`**, a game module for
 [gasm](https://gasm.emdzej.pl), a portable game runtime on WebAssembly. The same file runs in
