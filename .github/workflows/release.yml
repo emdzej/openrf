@@ -69,5 +69,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME"
           "${{ steps.pkg.outputs.zip }}" "${{ steps.pkg.outputs.zip }}.sha256"
           --title "OpenRF ${{ steps.ver.outputs.version }}"
-          --generated-notes
+          --generate-notes
           --notes-file .github/release-notes.md
