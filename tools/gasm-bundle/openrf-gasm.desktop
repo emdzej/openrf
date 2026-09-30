@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Return Fire (OpenRF)
+GenericName=Action game
+Comment=OpenRF, a reimplementation of Return Fire (1996), on gasm. Needs your Return Fire CD.
+Exec="@DIR@/openrf.sh"
+Icon=@DIR@/openrf.png
+Terminal=false
+Categories=Game;ActionGame;
