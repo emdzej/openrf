@@ -46,6 +46,7 @@ port* from the original.
 | `tests/` | Headless tests that run the real engine code against the original data |
 | `tools/` | Python: format decoders (`car.py`, `rfm.py`, `stm.py`, `models.py`), reference renderer (`view.py`), `render_cmp.py`, table-descriptor generators, `rfexe.py` (PE reader), `screenshots.sh`, `ghidra/` scripts |
 | `docs/` | VitePress site → openrf.emdzej.pl. User guide, how-tos, and the reverse-engineering notes (`architecture.md`, `render.md`, `game.md`, `car.md`, `rfm.md`, `stm.md`). `CONTEXT.md` is an agent briefing, excluded from the site |
+| `docs/public/play/` | Browser player (static app, served as-is at `/play/`): `play.js` (UI, loop, input, audio), `cd.js` (pick/check the CD, OPFS import), `vendor/` (gasm host + csfs, MIT, see its README). `openrf.wasm` is copied in by `docs/scripts/copy-wasm.sh` (git-ignored) |
 | `.github/workflows/` | `ci.yml` (build app + tests, `openrf.wasm`), `release.yml` (universal .app + `openrf-<version>.wasm` on tag), `pages.yml` (docs) |
 
 ## Game data
@@ -165,12 +166,39 @@ node ~/Projects/my/gasm/runners/web/headless.mjs build-gasm/openrf.wasm --asset 
 $RUN build-gasm/openrf.wasm --asset-dir cd --headless 689 ...  # folder mode: same hashes
 ```
 
-Expected for that run: `video_fnv32=d014dcfb audio_fnv32=f1520dc1 audio_frames=486158`. For a gasm
+Expected for that run: `video_fnv32=d014dcfb audio_fnv32=f1520dc1 audio_frames=486158` (two players:
+`--headless 900 --param skip_intro=1 --param play2=1 --param demo=2p` gives `video_fnv32=660f4ab4
+audio_fnv32=31f91835 audio_frames=635040`). Needs gasm 0.3.0 runners for `--asset-dir` (rebuild
+`runners/native` with `cargo build --release` after pulling gasm); the C SDK is unchanged since 0.2.0
+(`tools/fetch-gasm-sdk.sh` pins `GASM_VERSION`). The Node runner preloads `--asset` files (about 750 MB RSS
+with the `.bin`) but reads `--asset-dir` folders on demand (about 70 MB); native reads both on demand. For a gasm
 change: the `screenshots.sh` cases compared against the SDL build (`OPENRF_FIXED_STEP=1`, `OPENRF_HS`
 pointing at a missing file, `USER="Player 1"`) must be pixel-identical, and gasm-run twice and the Node
 runner must print identical hashes. Unlike the SDL build, movie frames are reproducible on gasm (the mixer
 runs on the frame). `--input "FROM-TO:BTN+BTN,..."` scripts pad 1 (frames from 0). Don't open a gasm-run
 window in unattended runs (use `--headless`).
+
+## Browser player
+
+`docs/public/play/` (`/play/` on the site) runs `openrf.wasm` in gasm's Worker mode: the user picks the CD
+folder (`showDirectoryPicker`, else `<input webkitdirectory>`) or an `.iso`/`.bin`; `cd.js` checks it
+(`RFIRE.BIN` 431,616 bytes, `ART/ART.CAR`, `SOUND/SCORE.WAV`) and copies `RFIRE.BIN` + `ART SOUND TITLE
+WORLDS` into OPFS `openrf-cd/` with csfs (marker `.openrf-import.json` written last), then the worker reads it
+through gasm's lazy OPFS provider; "Play without importing" uses the File/Blob provider. Storage namespace
+`openrf` (IndexedDB). Query params: the launch params, `hashframes=N` (virtual time, no input, prints the
+headless hash line into `globalThis.__openrfResult`), `autoplay`. **Never put game data in `docs/public/`.**
+The vendored gasm/csfs files are copies (see `vendor/README.md`): update them from upstream, don't edit them.
+
+```sh
+docs/scripts/copy-wasm.sh && (cd docs && pnpm build)
+node tools/web-play-test.mjs        # headless Chrome: import ./cd into OPFS via the page, run, compare hashes
+(cd docs/.vitepress/dist && python3 -m http.server 8080)   # then open http://localhost:8080/play/
+```
+
+`web-play-test.mjs` hands `./cd` and the `.bin` to the page's file inputs (CDP `DOM.setFileInputFiles`), so it
+exercises the real check/import/play code; it must print PASS for every case (OPFS import, later visit,
+without importing, disc image; the fire and 2p demos equal to `gasm-run`) and saves canvas PNGs in
+`/tmp/openrf-play/` (look at them). `pnpm dev` also serves `/play/`, at `http://localhost:5173/play/index.html`.
 
 ## Reverse engineering
 
@@ -224,8 +252,8 @@ it links only system libraries, signs it ad hoc and attaches the zip + SHA-256.
 
 - Windows and Linux builds: SDL3 covers the platform layer; the data-root lookup in `platform_sdl.c`
   uses macOS `_NSGetExecutablePath`, `vfs_host.c` uses POSIX (`pread`, `dirent`).
-- gasm in the browser: OpenRF's own page importing the CD folder into OPFS and running `openrf.wasm` in
-  gasm's Worker mode (needs gasm's web asset providers).
+- Browser player: done (`/play/`); switch `docs/public/play/vendor/gasm/` to `@emdzej/gasm-host@0.3.0` and
+  `tools/fetch-gasm-sdk.sh` to 0.3.0 once gasm 0.3.0 is released.
 - Online two-player: deterministic lockstep (exchange input words, periodic state hashes) over
   the [swsrs](https://github.com/emdzej/swsrs) relay. Keep the simulation deterministic.
 

@@ -12,6 +12,15 @@ Windows); native Windows and Linux builds are planned. It contains no original c
 the tables of the original game program (`RFIRE.BIN`: 3D models, object and sound tables), directly
 from your own copy of the game CD.
 
+## Play in the browser
+
+[openrf.emdzej.pl/play](https://openrf.emdzej.pl/play/) runs `openrf.wasm` in your browser (Chrome, Edge,
+Firefox, Safari). Choose your Return Fire CD folder (the disc, a mounted image, or a copy) once: the page
+checks it and copies it into the browser's private storage for the site (OPFS), so later visits start at
+once. Nothing is uploaded, and the site contains no game data. Keyboard (two players can share it) and
+gamepads. Locally: `docs/scripts/copy-wasm.sh && (cd docs && pnpm build)`, then serve
+`docs/.vitepress/dist` and open `/play/`.
+
 ## Build
 
 Requirements: Xcode command line tools, CMake, SDL3 (`brew install cmake sdl3`).
@@ -30,8 +39,11 @@ tools/fetch-gasm-sdk.sh
 cmake -S . -B build-gasm -DOPENRF_PLATFORM=gasm -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE=.deps/gasm-c-sdk/cmake/gasm-toolchain.cmake -DWASI_SDK_PREFIX="$PWD/.deps/wasi-sdk"
 cmake --build build-gasm -j      # -> build-gasm/openrf.wasm
-gasm-run build-gasm/openrf.wasm --asset "cd=Return Fire (Europe) (En,Fr,De,Es,It).bin"
+gasm-run build-gasm/openrf.wasm --asset-dir /Volumes/RFIRE     # the CD, a mounted image, or ./cd
+gasm-run build-gasm/openrf.wasm --asset "cd=Return Fire (Europe) (En,Fr,De,Es,It).bin"   # or an image
 ```
+
+`--asset-dir` and the two-player keyboard layout need gasm 0.3.0 or newer.
 
 Options become launch params there (`--param skip_intro=1`, `play`, `play2`, `level`, `demo`, `p1`, `p2`):
 see [docs/guide/gasm.md](docs/guide/gasm.md).
