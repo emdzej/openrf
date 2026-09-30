@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Play | OpenRF</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Play Return Fire in your browser with OpenRF, using the data from your own CD.">
+<meta name="theme-color" content="#727431">
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="stylesheet" href="play.css">
+<script type="importmap">
+{ "imports": {
+  "@emdzej/csfs-core": "./vendor/csfs/core/index.js",
+  "@emdzej/csfs-fsa": "./vendor/csfs/fsa/index.js",
+  "@emdzej/csfs-opfs": "./vendor/csfs/opfs/index.js"
+} }
+</script>
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="/"><img src="/favicon.png" alt="" width="24" height="24"> OpenRF</a>
+  <nav>
+    <a href="/guide/">User guide</a>
+    <a href="/guide/gasm">Running on gasm</a>
+    <a href="/play/" aria-current="page">Play</a>
+    <a href="https://github.com/emdzej/openrf">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section id="setup">
+    <h1>Play Return Fire in your browser</h1>
+    <p class="lead">OpenRF runs here as <code>openrf.wasm</code> on the
+      <a href="https://gasm.emdzej.pl">gasm</a> runtime: the same engine as the desktop app, with the
+      graphics, maps, movies and music read from <strong>your own Return Fire CD</strong>. Nothing from the game
+      is on this site, and nothing you pick leaves your computer.</p>
+
+    <div class="cols">
+      <div class="card">
+        <h2>What you need</h2>
+        <ul>
+          <li>The <strong>Return Fire CD for Windows 95</strong>, as a disc in a drive, a mounted disc image, or a
+            folder you copied it to. <a href="/howto/extract-cd#mount-it">How to mount an image</a>.</li>
+          <li>A recent Chrome, Edge, Firefox or Safari. The browser copies the CD (about 280 MB) into its private
+            storage for this site once, so later visits start at once.</li>
+          <li>A keyboard or a gamepad; two players can share one keyboard.</li>
+        </ul>
+      </div>
+      <div class="card" id="choose">
+        <h2 id="choose-title">Your CD</h2>
+        <div id="imported" hidden>
+          <p><strong>Imported:</strong> <span id="imported-desc"></span></p>
+          <div class="row">
+            <button id="play-opfs" class="primary">Play</button>
+            <button id="remove">Remove imported data</button>
+          </div>
+          <p class="small" id="storage"></p>
+          <p class="small" id="persist-row" hidden>The browser may clear site data when disk space runs low.
+            <button id="persist" class="link">Keep it</button></p>
+          <p class="small">Or choose the CD again below to replace it.</p>
+        </div>
+        <div class="row">
+          <button id="pick-folder" class="primary">Choose your Return Fire CD folder</button>
+          <button id="pick-image" class="link">or a disc image (.iso, .bin)</button>
+        </div>
+        <p class="small">Pick the folder that holds <code>RFIRE.BIN</code>, <code>ART</code> and <code>SOUND</code>:
+          the CD itself (<code>/Volumes/RFIRE</code>, drive <code>D:</code>) or a copy of it.</p>
+        <input id="folder-input" type="file" webkitdirectory multiple hidden>
+        <input id="image-input" type="file" accept=".iso,.bin,.img,.cue" hidden>
+
+        <div id="check" hidden>
+          <ul id="check-list" class="checks"></ul>
+          <div class="row" id="check-actions">
+            <button id="import" class="primary">Import and play</button>
+            <button id="play-direct">Play without importing</button>
+          </div>
+          <p class="small">Importing copies the files into this site's private browser storage (OPFS).
+            Playing without importing reads them from the folder you picked, which you'll need to pick again
+            next time.</p>
+        </div>
+
+        <div id="progress" hidden>
+          <progress id="progress-bar" max="1" value="0"></progress>
+          <p class="small" id="progress-text"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="game" hidden>
+    <div id="stage" class="stage">
+      <canvas id="screen" width="640" height="480" aria-label="Return Fire"></canvas>
+    </div>
+    <div class="toolbar">
+      <button id="fullscreen">Fullscreen</button>
+      <button id="sound">Sound: on</button>
+      <button id="keys">Keyboard layout</button>
+      <button id="stop">Stop</button>
+      <span id="status" class="small"></span>
+    </div>
+  </section>
+
+  <p id="message" class="message" role="status" hidden></p>
+
+  <section id="controls">
+    <h2>Controls</h2>
+    <p>The game sees two gamepads. Connected gamepads take them in connection order; without gamepads, the
+      keyboard plays both (player 2's keys work while fewer than two gamepads are connected). More in
+      <a href="/guide/controls#gamepads">Controls</a>.</p>
+    <table>
+      <thead><tr><th>Pad</th><th>In the game</th><th>Player 1 keys</th><th>Player 2 keys</th></tr></thead>
+      <tbody id="controls-body"></tbody>
+    </table>
+    <p class="small">Title screen: START starts a one-player game, SELECT (or player 2's START) a two-player game.
+      In play, SELECT swaps sides and START + SELECT leaves the level. High scores are kept in this browser.</p>
+  </section>
+</main>
+
+<dialog id="keys-dialog">
+  <form method="dialog">
+    <h2>Keyboard layout</h2>
+    <p class="small">One binding per line: <code>&lt;pad 1-4&gt; &lt;button&gt; &lt;key code&gt;...</code>. Buttons:
+      <code>a b x y l r select start up down left right</code>; key codes are
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values">KeyboardEvent.code</a>
+      names. The same format as <code>gasm-run --keymap</code>.</p>
+    <textarea id="keymap-text" rows="18" spellcheck="false"></textarea>
+    <p id="keymap-error" class="error"></p>
+    <div class="row">
+      <button id="keymap-save" class="primary" value="save">Save</button>
+      <button id="keymap-reset" value="reset">Default</button>
+      <button value="cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<footer class="foot">OpenRF is released under the GPL-3.0. Return Fire is &copy; 1995-1996 Silent Software / Prolific.
+  OpenRF contains no original code or assets.</footer>
+
+<script type="module" src="play.js"></script>
+</body>
+</html>
