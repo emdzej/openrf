@@ -11,8 +11,8 @@ ported function by function from the original executable (`RFIRE.BIN` on the CD 
 game; `RFIRE.EXE` only picks a language DLL), in the same 16.16 fixed-point maths. The gasm backend builds `openrf.wasm`, a guest for the
 [gasm](https://github.com/emdzej/gasm) WebAssembly game runtime.
 
-**State:** the whole original game (1P and 2P) is ported. Latest release **0.2.0**: native SDL macOS app,
-`openrf-0.2.0.wasm`, gasm bundles for macOS, Linux (x86_64, arm64) and Windows, and the browser player at
+**State:** the whole original game (1P and 2P) is ported. Latest release **0.3.0**: native SDL macOS app,
+`openrf-0.3.0.wasm`, gasm bundles for macOS, Linux (x86_64, arm64) and Windows, and the browser player at
 https://openrf.emdzej.pl/play/. Work lands on `main` (short-lived branches are fine; CI runs on `main` and PRs).
 
 The Windows game is itself a port of the 3DO original: the renderer is a software emulation of
@@ -278,8 +278,8 @@ bundles can be smoke-tested in Apple `container` (`debian:trixie-slim`, `apt-get
 ## Releases
 
 Plain semver tags, **no `v` prefix**: bump `project(OpenRF VERSION …)` in `CMakeLists.txt`,
-then `git tag 0.3.0 && git push origin 0.3.0` (the release job creates the GitHub Release itself; the
-last release is 0.2.0). The workflow builds the universal `.app`, checks
+then `git tag 0.4.0 && git push origin 0.4.0` (the release job creates the GitHub Release itself; the
+last release is 0.3.0). The workflow builds the universal `.app`, checks
 it links only system libraries, signs it ad hoc; builds `openrf-<version>.wasm`; packages the gasm bundles
 (`gasm-macos`, `gasm-package`) and smoke-tests each on its own OS (`gasm-macos`, `gasm-smoke-linux` on x86_64
 and `ubuntu-24.04-arm`, `gasm-smoke-windows`); the `release` job needs all of them and attaches every zip /
