@@ -8,7 +8,7 @@ nm=node_modules/@emdzej
 out=public/play/vendor
 rm -rf "$out"
 mkdir -p "$out/gasm" "$out/csfs/core" "$out/csfs/fsa" "$out/csfs/opfs"
-cp "$nm/gasm-host/gasm-host.js" "$nm/gasm-host/gasm-worker.js" "$out/gasm/"
+cp "$nm/gasm-host/gasm-host.js" "$nm/gasm-host/gasm-worker.js" "$nm/gasm-host/webgpu-gfx.js" "$out/gasm/"   # the worker imports webgpu-gfx.js (0.4.0+)
 cp "$nm/csfs-core/dist/"*.js "$out/csfs/core/"
 cp "$nm/csfs-fsa/dist/index.js" "$out/csfs/fsa/"
 cp "$nm/csfs-opfs/dist/index.js" "$out/csfs/opfs/"

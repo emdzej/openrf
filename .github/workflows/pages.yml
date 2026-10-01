@@ -36,7 +36,7 @@ jobs:
         with:
           fetch-depth: 0   # lastUpdated timestamps
 
-      # SDK version: GASM_VERSION in tools/fetch-gasm-sdk.sh (0.2.0's C SDK, unchanged in 0.3.0).
+      # SDK version: GASM_VERSION in tools/fetch-gasm-sdk.sh (0.5.0 or newer: raw keyboard).
       - name: fetch wasi-sdk and the gasm C SDK
         run: tools/fetch-gasm-sdk.sh
 

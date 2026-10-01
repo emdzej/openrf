@@ -6,7 +6,7 @@ Return Fire CD (the disc, a mounted image, a copy, or a raw `.bin` / `.iso`), wh
 - `openrf-gasm-…-macos-universal.zip`: `Return Fire (gasm).app`, the gasm build for macOS.
 - `openrf-gasm-…-linux-x86_64.tar.gz` / `openrf-gasm-…-linux-arm64.tar.gz`: Linux, start `./openrf.sh`.
 - `openrf-gasm-…-windows-x86_64.zip`: Windows 10/11, start `OpenRF.cmd`.
-- `openrf-….wasm`: the module alone, for your own [gasm](https://gasm.emdzej.pl) `gasm-run` 0.3.0 or newer.
+- `openrf-….wasm`: the module alone, for your own [gasm](https://gasm.emdzej.pl) `gasm-run` 0.5.0 or newer.
 - No download: [play in the browser](https://openrf.emdzej.pl/play/).
 
 First run:

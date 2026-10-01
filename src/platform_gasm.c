@@ -7,7 +7,12 @@
 
    Everything is deterministic: the clock is 16 ms per presented frame (like the SDL build's
    OPENRF_FIXED_STEP=1), audio is rendered on the frame (never on another thread), input is the runner's
-   per-frame pad state. Same module + assets + params + pad input = same video and audio on every runner.
+   per-frame pad and keyboard state. Same module + assets + params + input = same video and audio on every
+   runner.
+
+   Input: the raw keyboard (gasm 0.5.0: input_mode KEYS_RAW, key_state, key_events), so the game gets the
+   original key bindings exactly as in the SDL build (input.c), with the runner's keymap switched off for
+   the keyboard; gamepads still arrive as pads 0-3. Older runners trap on these imports.
 
    Game data (vfs.h), first match wins:
    1. asset "cd" (or "rom", gasm-run --rom): a disc image, raw MODE1/2352 .bin or .iso, mounted with
@@ -44,7 +49,8 @@ static uint32_t *rgba, *rgba_movie;
 static int movie_w, movie_h;
 static uint64_t virt_ms;                 /* 16 ms per present */
 static uint32_t pads[4], pads_prev;      /* pads_prev: all pads OR-ed at the previous plat_poll */
-static bool any_edge;
+static bool keys[KEY_COUNT];             /* held, by KEY_* (USB HID usage) */
+static bool any_edge, new_frame;         /* new_frame: no plat_poll yet in this gasm_frame */
 
 static void log_str(const char *s) { gasm_log(s, (uint32_t)strlen(s)); }
 
@@ -113,18 +119,70 @@ void plat_present_rgb(const uint32_t *px, int w, int h)
 
 /* ------------------------------------------------------------------ input and time */
 
-/* Pads are stable within a gasm_frame; the core may poll several times per frame, so the "any button went
-   down" edge fires at the first poll that sees the new state. The runner handles quitting (gasm_exit). */
+/* GASM_KEY_* (W3C KeyboardEvent.code order) -> KEY_* (USB HID usage), for the keys keys.h lists; 0 = unused. */
+static uint16_t hid_of[GASM_KEY_STATE_BYTES * 8];
+
+static void init_key_table(void)
+{
+    for (int i = 0; i < 26; i++) hid_of[GASM_KEY_KEY_A + i] = (uint16_t)(KEY_A + i);
+    for (int i = 0; i < 9; i++) {
+        hid_of[GASM_KEY_DIGIT1 + i] = (uint16_t)(KEY_1 + i);
+        hid_of[GASM_KEY_NUMPAD1 + i] = (uint16_t)(KEY_KP_1 + i);
+    }
+    for (int i = 0; i < 12; i++) hid_of[GASM_KEY_F1 + i] = (uint16_t)(KEY_F1 + i);
+    static const uint16_t pairs[][2] = {
+        { GASM_KEY_DIGIT0, KEY_0 }, { GASM_KEY_NUMPAD0, KEY_KP_0 },
+        { GASM_KEY_ENTER, KEY_RETURN }, { GASM_KEY_ESCAPE, KEY_ESCAPE }, { GASM_KEY_BACKSPACE, KEY_BACKSPACE },
+        { GASM_KEY_TAB, KEY_TAB }, { GASM_KEY_SPACE, KEY_SPACE },
+        { GASM_KEY_BRACKET_LEFT, KEY_LEFTBRACKET }, { GASM_KEY_BRACKET_RIGHT, KEY_RIGHTBRACKET },
+        { GASM_KEY_INSERT, KEY_INSERT }, { GASM_KEY_HOME, KEY_HOME }, { GASM_KEY_PAGE_UP, KEY_PAGEUP },
+        { GASM_KEY_DELETE, KEY_DELETE }, { GASM_KEY_END, KEY_END }, { GASM_KEY_PAGE_DOWN, KEY_PAGEDOWN },
+        { GASM_KEY_ARROW_RIGHT, KEY_RIGHT }, { GASM_KEY_ARROW_LEFT, KEY_LEFT }, { GASM_KEY_ARROW_DOWN, KEY_DOWN },
+        { GASM_KEY_ARROW_UP, KEY_UP },
+        { GASM_KEY_NUMPAD_DIVIDE, KEY_KP_DIVIDE }, { GASM_KEY_NUMPAD_MULTIPLY, KEY_KP_MULTIPLY },
+        { GASM_KEY_NUMPAD_SUBTRACT, KEY_KP_MINUS }, { GASM_KEY_NUMPAD_ADD, KEY_KP_PLUS },
+        { GASM_KEY_NUMPAD_ENTER, KEY_KP_ENTER }, { GASM_KEY_NUMPAD_DECIMAL, KEY_KP_PERIOD },
+        { GASM_KEY_CONTROL_LEFT, KEY_LCTRL }, { GASM_KEY_SHIFT_LEFT, KEY_LSHIFT }, { GASM_KEY_ALT_LEFT, KEY_LALT },
+        { GASM_KEY_META_LEFT, KEY_LGUI }, { GASM_KEY_CONTROL_RIGHT, KEY_RCTRL }, { GASM_KEY_SHIFT_RIGHT, KEY_RSHIFT },
+        { GASM_KEY_ALT_RIGHT, KEY_RALT }, { GASM_KEY_META_RIGHT, KEY_RGUI },
+    };
+    for (size_t i = 0; i < sizeof pairs / sizeof *pairs; i++) hid_of[pairs[i][0]] = pairs[i][1];
+}
+
+/* Keys: key_state for what is held, key_events for "a key went down" (catches taps shorter than a frame,
+   like the SDL build's KEY_DOWN events). */
+static bool read_keys(void)
+{
+    uint8_t st[GASM_KEY_STATE_BYTES];
+    memset(keys, 0, sizeof keys);
+    if (gasm_key_state(st, sizeof st) < 0) return false;   /* no keyboard */
+    for (int k = 1; k < GASM_KEY_STATE_BYTES * 8; k++)
+        if (hid_of[k] && st[k >> 3] >> (k & 7) & 1) keys[hid_of[k]] = true;
+    uint8_t ev[4 * 64];
+    int32_t n = gasm_key_events(ev, sizeof ev);
+    if (n > (int32_t)sizeof ev) return true;               /* more than 64 events in a frame: some went down */
+    for (int32_t i = 0; i + 3 < n; i += 4)
+        if (ev[i + 2]) return true;
+    return false;
+}
+
+/* Pads and keys are stable within a gasm_frame; the core may poll several times per frame, so the "any
+   button went down" edge fires at the first poll that sees the new state. The runner handles quitting
+   (Esc held, window closed: gasm_exit); a tap of Esc reaches the game. */
 bool plat_poll(void)
 {
     uint32_t all = 0;
     for (uint32_t p = 0; p < 4; p++) all |= pads[p] = gasm_input_pad(p);
     any_edge = (all & ~pads_prev) != 0;
     pads_prev = all;
+    if (new_frame) {
+        new_frame = false;
+        any_edge |= read_keys();
+    }
     return true;
 }
 
-bool plat_key_down(int key) { (void)key; return false; }
+bool plat_key_down(int key) { return key > 0 && key < KEY_COUNT && keys[key]; }
 bool plat_any_key_pressed(void) { return any_edge; }
 uint32_t plat_pad(int player) { return player >= 0 && player < 4 ? pads[player] : 0; }
 uint64_t plat_ticks_ms(void) { return virt_ms; }
@@ -318,6 +376,8 @@ GASM_EXPORT("gasm_abi_version") int32_t openrf_gasm_abi_version(void) { return G
 GASM_EXPORT("gasm_init") int32_t openrf_gasm_init(void)
 {
     gasm_set_frame_rate((double)RATE_NUM / RATE_DEN);
+    gasm_input_mode(GASM_INPUT_KEYS_RAW);                  /* the keyboard is ours: no keymap pads */
+    init_key_table();
     gasm_audio_config(AUDIO_RATE, AUDIO_CHANNELS);
     if (!mount_image_asset("cd") && !mount_image_asset("rom") && !mount_file_assets()) {
         plat_error("Return Fire", "game data not found: pass your Return Fire disc image as asset \"cd\" "
@@ -354,6 +414,7 @@ GASM_EXPORT("gasm_init") int32_t openrf_gasm_init(void)
 GASM_EXPORT("gasm_frame") void openrf_gasm_frame(void)
 {
     if (!running) return;
+    new_frame = true;
     if (!app_frame()) {
         running = false;
         app_exit();

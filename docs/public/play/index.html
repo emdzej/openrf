@@ -43,7 +43,7 @@
             folder you copied it to. <a href="/howto/extract-cd#mount-it">How to mount an image</a>.</li>
           <li>A recent Chrome, Edge, Firefox or Safari. The browser copies the CD (about 280 MB) into its private
             storage for this site once, so later visits start at once.</li>
-          <li>A keyboard or a gamepad; two players can share one keyboard.</li>
+          <li>A keyboard or a gamepad; two players can share one keyboard (player 2 on the numeric keypad).</li>
         </ul>
       </div>
       <div class="card" id="choose">
@@ -94,7 +94,6 @@
     <div class="toolbar">
       <button id="fullscreen">Fullscreen</button>
       <button id="sound">Sound: on</button>
-      <button id="keys">Keyboard layout</button>
       <button id="stop">Stop</button>
       <span id="status" class="small"></span>
     </div>
@@ -104,34 +103,25 @@
 
   <section id="controls">
     <h2>Controls</h2>
-    <p>The game sees two gamepads. Connected gamepads take them in connection order; without gamepads, the
-      keyboard plays both (player 2's keys work while fewer than two gamepads are connected). More in
-      <a href="/guide/controls#gamepads">Controls</a>.</p>
+    <p>The keyboard works as in the original game; gamepads work alongside it, the first for player 1 and
+      the second for player 2. More in <a href="/guide/controls">Controls</a>.</p>
     <table>
-      <thead><tr><th>Pad</th><th>In the game</th><th>Player 1 keys</th><th>Player 2 keys</th></tr></thead>
-      <tbody id="controls-body"></tbody>
+      <thead><tr><th>In the game</th><th>Player 1 keys</th><th>Player 2 keys</th><th>Gamepad</th></tr></thead>
+      <tbody>
+        <tr><td>Forward / back, turn</td><td>W A S D or arrow keys</td><td>Keypad 8 5 4 6</td><td>D-pad, left stick</td></tr>
+        <tr><td>Button 1: fire, launch, dock</td><td>H</td><td>Keypad &minus;</td><td>A (east)</td></tr>
+        <tr><td>Button 2</td><td>J</td><td>Keypad +</td><td>B (south)</td></tr>
+        <tr><td>Button 3</td><td>K</td><td>Keypad Enter</td><td>X (north)</td></tr>
+        <tr><td>Buttons 4 / 5: turret, strafe</td><td>Q / E</td><td>Keypad 7 / 9</td><td>L / R</td></tr>
+        <tr><td>Self-destruct</td><td>H + J + K</td><td>Keypad &minus; + Enter</td><td>A + B + X</td></tr>
+      </tbody>
     </table>
-    <p class="small">Title screen: START starts a one-player game, SELECT (or player 2's START) a two-player game.
-      In play, SELECT swaps sides and START + SELECT leaves the level. High scores are kept in this browser.</p>
+    <p class="small">Title screen: F2 (or START) starts a one-player game, F3 (or SELECT, or player 2's START) a
+      two-player game, 1&ndash;9 and Shift + 1&ndash;9 the first one- and two-player map of a difficulty level.
+      In play, Alt + 3 (or SELECT) swaps sides and Esc (or START + SELECT) leaves the level; holding Esc
+      stops the game. High scores are kept in this browser.</p>
   </section>
 </main>
-
-<dialog id="keys-dialog">
-  <form method="dialog">
-    <h2>Keyboard layout</h2>
-    <p class="small">One binding per line: <code>&lt;pad 1-4&gt; &lt;button&gt; &lt;key code&gt;...</code>. Buttons:
-      <code>a b x y l r select start up down left right</code>; key codes are
-      <a href="https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values">KeyboardEvent.code</a>
-      names. The same format as <code>gasm-run --keymap</code>.</p>
-    <textarea id="keymap-text" rows="18" spellcheck="false"></textarea>
-    <p id="keymap-error" class="error"></p>
-    <div class="row">
-      <button id="keymap-save" class="primary" value="save">Save</button>
-      <button id="keymap-reset" value="reset">Default</button>
-      <button value="cancel">Cancel</button>
-    </div>
-  </form>
-</dialog>
 
 <footer class="foot"><p class="powered">Powered by <a href="https://gasm.emdzej.pl"><img src="https://gasm.emdzej.pl/badge/built-for-gasm-dark.svg" alt="Built for gasm" width="120" height="44"></a></p>
   OpenRF is released under the GPL-3.0. Return Fire is &copy; 1995-1996 Silent Software / Prolific.

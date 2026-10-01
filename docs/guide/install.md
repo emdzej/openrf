@@ -12,7 +12,7 @@ Every download is on the [releases page](https://github.com/emdzej/openrf/releas
 | Linux arm64 | `openrf-gasm-<version>-linux-arm64.tar.gz` | gasm bundle: `openrf.sh` launcher |
 | Windows 10/11 x86_64 | `openrf-gasm-<version>-windows-x86_64.zip` | gasm bundle: `OpenRF.cmd` launcher |
 | Any browser | nothing to download | [Play in the browser](/play/){target="_self"} (Chrome, Edge, Firefox, Safari) |
-| Your own gasm runner | `openrf-<version>.wasm` | Run it with `gasm-run` 0.3.0 or newer, see [Running on gasm](./gasm) |
+| Your own gasm runner | `openrf-<version>.wasm` | Run it with `gasm-run` 0.5.0 or newer, see [Running on gasm](./gasm) |
 
 The gasm bundles are `openrf.wasm` with the matching released `gasm-run` (the
 [gasm](https://gasm.emdzej.pl) WebAssembly game runtime) and a small launcher that finds your CD. They play

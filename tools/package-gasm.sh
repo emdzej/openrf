@@ -33,7 +33,7 @@ sha() { (cd "$OUT" && if command -v sha256sum >/dev/null; then sha256sum "$1"; e
 # readme <out file>: README.txt for this platform (~, $USER and backslashes are meant literally)
 # shellcheck disable=SC2088,SC2016,SC1003
 readme() {
-  local start cd_how change saves logs keymapdir lic=""
+  local start cd_how change saves logs lic=""
   [ -n "$EXE" ] && lic=.txt
   case "$PLATFORM" in
     macos-*)
@@ -46,8 +46,7 @@ to; "Choose disc image..." for a raw .bin (of a .bin/.cue pair) or an .iso file.
   ~/Library/Application Support/OpenRF/cd-location
 From Terminal: "Return Fire (gasm).app/Contents/MacOS/OpenRF" --help'
       saves='~/Library/Application Support/gasm/openrf/RFire_HS'
-      logs='~/Library/Logs/OpenRF/gasm.log'
-      keymapdir='~/Library/Application Support/gasm/keymap.txt' ;;
+      logs='~/Library/Logs/OpenRF/gasm.log' ;;
     linux-*)
       start='Run ./openrf.sh (from a terminal or your file manager). ./openrf.sh --install-desktop adds
 a menu entry. gasm-run needs ALSA (libasound2, package libasound2t64 on newer Debian and
@@ -59,8 +58,7 @@ opens a chooser (zenity or kdialog) if one is installed.'
   ${XDG_CONFIG_HOME:-~/.config}/openrf/cd-location
 ./openrf.sh --help lists the options; anything after the CD goes to gasm-run.'
       saves='~/.local/share/gasm/openrf/RFire_HS'
-      logs='the terminal, or ~/.local/state/openrf/gasm.log when started from a menu'
-      keymapdir='~/.local/share/gasm/keymap.txt' ;;
+      logs='the terminal, or ~/.local/state/openrf/gasm.log when started from a menu' ;;
     windows-*)
       start='Double-click OpenRF.cmd. (If Windows SmartScreen warns about gasm-run.exe: More info,
 Run anyway.)'
@@ -70,8 +68,7 @@ raw .bin (of a .bin/.cue pair) or an .iso file. From a command prompt: OpenRF.cm
       change='OpenRF.cmd --change-cd, or delete %APPDATA%\OpenRF\cd-location.
 OpenRF.cmd --help lists the options; anything after the CD goes to gasm-run.'
       saves='%APPDATA%\gasm\openrf\RFire_HS'
-      logs='the console window'
-      keymapdir='%APPDATA%\gasm\keymap.txt' ;;
+      logs='the console window' ;;
   esac
   cat > "$1" <<TXT
 OpenRF $VERSION for gasm ($PLATFORM)
@@ -95,20 +92,16 @@ image has to be inserted or mounted again).
 CHANGE THE CD
 $change
 
-CONTROLS (keyboard; gamepads work too and take players 1 and 2)
-                    Player 1          Player 2 (same keyboard)
-  Drive / turn      Arrows            I J K L
-  Fire (button 1)   X                 . (period)
-  Button 2          Z                 , (comma)
-  Button 3          S                 M
-  Buttons 4 / 5     Q / W             U / O
-  Start / launch    Enter             Right Ctrl or keypad Enter
-  Select / swap     Right Shift       Backspace
-  Leave the level   Enter + Right Shift   Right Ctrl + Backspace
-  Esc quits.
-Title screen: Enter starts a one-player game, Right Shift (or player 2's Start) a two-player
-game on one keyboard. Other keys: write a layout file (gasm-run --print-keymap prints the default)
-and save it as $keymapdir
+CONTROLS (the original keys; gamepads work too and take players 1 and 2)
+                    Player 1             Player 2 (same keyboard)
+  Drive / turn      W A S D or arrows    Keypad 8 5 4 6
+  Fire (button 1)   H                    Keypad -
+  Button 2          J                    Keypad +
+  Button 3          K                    Keypad Enter
+  Buttons 4 / 5     Q / E                Keypad 7 / 9
+Title screen: F2 starts a one-player game, F3 a two-player game on one keyboard, 1-9 and
+Shift+1-9 the first map of a difficulty level. In play: Alt+3 swaps sides, Esc leaves the
+level. Hold Esc for a second to quit.
 Full list: https://openrf.emdzej.pl/guide/controls
 
 HIGH SCORES

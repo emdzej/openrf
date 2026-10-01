@@ -33,7 +33,7 @@ Options:
   --install-desktop  add a menu entry (~/.local/share/applications/openrf-gasm.desktop) and exit
   --dry-run          print the gasm-run command instead of running it (also OPENRF_DRY_RUN=1)
   --help             this text
-Anything after the CD goes to gasm-run, e.g. --param level=12 --param play=1, --keymap FILE, --mute.
+Anything after the CD goes to gasm-run, e.g. --param level=12 --param play=1, --mute.
 OPENRF_CD=<CD> uses that CD for one run without saving it.
 
 More: https://openrf.emdzej.pl/guide/gasm

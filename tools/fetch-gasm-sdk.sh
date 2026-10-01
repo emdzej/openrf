@@ -12,8 +12,9 @@ WASI_SDK_VERSION=${WASI_SDK_VERSION:-34}
 # The one place the gasm version is set (CI, release and Pages builds all call this script; the gasm
 # bundles' runners too, via --version).
 # Keep it in step with @emdzej/gasm-host in docs/package.json (the browser player's runner).
-# 0.3.0 is the minimum runner for folders (--asset-dir), file-backed assets, Worker mode and keymaps.
-GASM_VERSION=${GASM_VERSION:-0.3.0}
+# 0.5.0 is the minimum runner: the module reads the raw keyboard (input_mode, key_state, key_events;
+# older runners trap on them). 0.3.0 added folders (--asset-dir), file-backed assets and Worker mode.
+GASM_VERSION=${GASM_VERSION:-0.5.0}
 if [ "${1:-}" = --version ]; then echo "$GASM_VERSION"; exit 0; fi
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)  PLAT=arm64-macos ;;
@@ -30,12 +31,13 @@ if [ ! -x .deps/wasi-sdk/bin/clang ]; then
   rm -rf .deps/wasi-sdk && mv ".deps/wasi-sdk-$WASI_SDK_VERSION.0-$PLAT" .deps/wasi-sdk
   if [ "$(uname -s)" = Darwin ]; then xattr -dr com.apple.quarantine .deps/wasi-sdk 2>/dev/null || true; fi
 fi
-if [ ! -f .deps/gasm-c-sdk/include/gasm.h ]; then
+if [ ! -f .deps/gasm-c-sdk/include/gasm.h ] || [ "$(cat .deps/gasm-c-sdk/VERSION 2>/dev/null)" != "$GASM_VERSION" ]; then
   url=https://github.com/emdzej/gasm/releases/download/$GASM_VERSION/gasm-c-sdk-$GASM_VERSION.zip
   echo "fetching $url"
   curl -fsSL -o .deps/gasm-c-sdk.zip "$url"
   rm -rf .deps/gasm-c-sdk ".deps/gasm-c-sdk-$GASM_VERSION"
   (cd .deps && unzip -q gasm-c-sdk.zip && mv "gasm-c-sdk-$GASM_VERSION" gasm-c-sdk && rm gasm-c-sdk.zip)
+  echo "$GASM_VERSION" > .deps/gasm-c-sdk/VERSION    # a later pin bump fetches again
 fi
 .deps/wasi-sdk/bin/clang --version | head -1
 echo "gasm C SDK $GASM_VERSION: .deps/gasm-c-sdk"

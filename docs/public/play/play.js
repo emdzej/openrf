@@ -8,7 +8,7 @@
 //                  same "frames=... video_fnv32=... audio_fnv32=..." line as gasm-run --headless
 //                  (globalThis.__openrfResult)
 //   autoplay       start the imported CD right away
-import { DEFAULT_KEYMAP, ProcExit, Resampler, keyboardPads, parseKeymap } from './vendor/gasm/gasm-host.js';
+import { BrowserInput, ProcExit, Resampler } from './vendor/gasm/gasm-host.js';
 import { GasmWorker } from './vendor/gasm/gasm-worker.js';
 import * as cd from './cd.js';
 
@@ -27,21 +27,22 @@ function message(text, kind = 'info') {
 }
 const show = (id, on) => { $(id).hidden = !on; };
 
-// ---- keyboard layout and gamepads -----------------------------------------------------------
-const KEYMAP_KEY = 'openrf.keymap';
-let keymapText = localStorage.getItem(KEYMAP_KEY) ?? DEFAULT_KEYMAP;
-let keymap = parseKeymap(keymapText);
-if (keymap.errors.length) { keymapText = DEFAULT_KEYMAP; keymap = parseKeymap(DEFAULT_KEYMAP); }
-
-const held = new Set();
+// ---- keyboard and gamepads ------------------------------------------------------------------
+// The game reads the keyboard itself (raw keys, the original bindings; input_mode KEYS_RAW), so the page
+// only collects it. Gamepads are virtual pads 0-3, in connection order.
 const typing = (e) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+const keyboard = new BrowserInput($('screen'), { ignore: (e) => !running || typing(e) }).attach();
+// While playing, keys shouldn't scroll the page or open the browser's menus (Alt); browser shortcuts
+// (Cmd/Ctrl + key, F4-F12) still work. A tap of Escape goes to the game (leave the level); holding it for a
+// second stops the game, like gasm-run.
+const browserKey = (e) => e.metaKey || (e.ctrlKey && !/^(Control|Shift)/.test(e.code)) || /^F([4-9]|1[0-2])$/.test(e.code);
+let escDown = 0;
 addEventListener('keydown', (e) => {
-  if (!running || typing(e) || $('keys-dialog').open || !keymap.bindings.has(e.code)) return;
-  held.add(e.code);
-  e.preventDefault();
+  if (!running || typing(e)) return;
+  if (e.code === 'Escape') { if (!e.repeat) escDown = performance.now(); return; }
+  if (!browserKey(e)) e.preventDefault();
 });
-addEventListener('keyup', (e) => held.delete(e.code));
-addEventListener('blur', () => held.clear());
+addEventListener('keyup', (e) => { if (e.code === 'Escape') escDown = 0; });
 
 // W3C "standard" gamepad mapping -> gasm button bit (A east, B south, X north, Y west, like gasm's app.js).
 const PAD = { 1: 0, 0: 1, 3: 2, 2: 3, 4: 4, 5: 5, 6: 4, 7: 5, 8: 6, 9: 7, 12: 8, 13: 9, 14: 10, 15: 11 };
@@ -57,65 +58,8 @@ function readPads() {
     if (y < -0.5) m |= 1 << 8; if (y > 0.5) m |= 1 << 9;
     pads[n++] |= m;
   }
-  const kb = keyboardPads(keymap.bindings, held, n);
-  return pads.map((p, i) => p | kb[i]);
+  return pads;
 }
-
-// Controls table from the active layout (docs/guide/controls.md: the game's pad mapping).
-const KEY_NAMES = {
-  ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Period: 'Period', Comma: 'Comma',
-  Slash: '/', Semicolon: ';', Quote: "'", ShiftRight: 'Right Shift', ShiftLeft: 'Left Shift',
-  ControlRight: 'Right Ctrl', ControlLeft: 'Left Ctrl', NumpadEnter: 'Keypad Enter', AltRight: 'Right Alt',
-  AltLeft: 'Left Alt', Space: 'Space',
-};
-const keyName = (code) => KEY_NAMES[code] ?? code.replace(/^Key|^Digit/, '').replace(/^Numpad/, 'Keypad ');
-function keysFor(pad, button) {
-  const bit = ['a', 'b', 'x', 'y', 'l', 'r', 'select', 'start', 'up', 'down', 'left', 'right'].indexOf(button);
-  const codes = [...keymap.bindings].filter(([, bs]) => bs.some((b) => b.pad === pad && b.bit === bit)).map(([c]) => c);
-  return codes.map(keyName).join(' or ') || '-';
-}
-function renderControls() {
-  const rows = [
-    ['D-pad', 'Forward / back, turn', (p) => {
-      const k = ['up', 'left', 'down', 'right'].map((b) => keysFor(p, b));
-      return k.join(' ') === 'Up Left Down Right' ? 'Arrow keys' : k.join(' / ');
-    }],
-    ['A', 'Button 1: fire, launch, dock', (p) => keysFor(p, 'a')],
-    ['B', 'Button 2', (p) => keysFor(p, 'b')],
-    ['X', 'Button 3', (p) => keysFor(p, 'x')],
-    ['A + B + X', 'Self-destruct', (p) => ['a', 'b', 'x'].map((b) => keysFor(p, b)).join(' + ')],
-    ['L / R', 'Buttons 4 / 5: turret, strafe', (p) => `${keysFor(p, 'l')} / ${keysFor(p, 'r')}`],
-    ['START', 'Title: one-player game; bunker: launch', (p) => keysFor(p, 'start')],
-    ['SELECT', 'Title: two-player game; in play: swap sides', (p) => keysFor(p, 'select')],
-    ['START + SELECT', 'Leave the level', (p) => `${keysFor(p, 'start')} + ${keysFor(p, 'select')}`],
-  ];
-  const body = $('controls-body');
-  body.textContent = '';
-  for (const [pad, action, keys] of rows) {
-    const tr = document.createElement('tr');
-    for (const text of [pad, action, keys(0), keys(1)]) {
-      const td = document.createElement('td');
-      td.textContent = text;
-      tr.append(td);
-    }
-    body.append(tr);
-  }
-}
-renderControls();
-
-$('keys').onclick = () => {
-  $('keymap-text').value = keymapText;
-  $('keymap-error').textContent = '';
-  $('keys-dialog').showModal();
-};
-$('keymap-save').onclick = (e) => {
-  const text = $('keymap-text').value, k = parseKeymap(text);
-  if (k.errors.length) { e.preventDefault(); $('keymap-error').textContent = k.errors.join('\n'); return; }
-  keymapText = text; keymap = k;
-  if (text === DEFAULT_KEYMAP) localStorage.removeItem(KEYMAP_KEY); else localStorage.setItem(KEYMAP_KEY, text);
-  renderControls();
-};
-$('keymap-reset').onclick = (e) => { e.preventDefault(); $('keymap-text').value = DEFAULT_KEYMAP; $('keymap-error').textContent = ''; };
 
 // ---- audio: the gasm web player's AudioWorklet queue ------------------------------------------
 const WORKLET = `
@@ -208,8 +152,7 @@ function onLog(msg) {
 
 async function stopGame() {
   cancelAnimationFrame(rafId);
-  running = false; inflight = false;
-  held.clear();
+  running = false; inflight = false; escDown = 0;
   const w = worker; worker = null;
   await w?.exit();          // flushes the high scores, releases the OPFS handles
 }
@@ -263,6 +206,10 @@ async function play(source) {
 function tick(now) {
   rafId = requestAnimationFrame(tick);
   if (!running || !worker) return;
+  if (escDown && now - escDown >= 1000) {   // Escape held: stop (the tap already went to the game)
+    $('stop').onclick();
+    return;
+  }
   const period = 1000 / worker.frameRate;
   acc += Math.min(now - last, 100);    // clamp after tab switches
   last = now;
@@ -272,7 +219,8 @@ function tick(now) {
     const pads = readPads();
     inflight = true;
     acc -= due * period;
-    worker.frames(Array.from({ length: due }, () => pads), true).then((r) => {
+    const inputs = Array.from({ length: due }, (_, k) => keyboard.frame(k === 0));
+    worker.frames(Array.from({ length: due }, () => pads), true, { inputs }).then((r) => {
       inflight = false;
       fpsN += due;
       if (r.frame) present(r.frame.rgba, r.frame.width, r.frame.height);

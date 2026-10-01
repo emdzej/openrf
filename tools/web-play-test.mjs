@@ -23,7 +23,7 @@ const OUT = resolve(process.argv[4] ?? '/tmp/openrf-play');
 const DIST = join(repo, 'docs/.vitepress/dist');
 const PORT = 8792, DEBUG = 9335;
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const RUN = process.env.GASM_RUN ?? `${process.env.HOME}/Projects/my/gasm/runners/native/target/release/gasm-run`;
+const RUN = process.env.GASM_RUN ?? join(repo, '.deps/gasm-runner-macos-universal/gasm-run');   // tools/fetch-gasm-runner.sh
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 mkdirSync(OUT, { recursive: true });
 if (!existsSync(join(DIST, 'play/openrf.wasm'))) { console.error('build the site first (docs/scripts/copy-wasm.sh, pnpm build)'); process.exit(1); }
@@ -171,18 +171,23 @@ try {
       await saveCanvas(page, join(OUT, `${c.name}-image.png`));
     }
   }
-  // Real-time play with the keyboard: title screen, then Enter (pad 1 START) starts a one-player game.
+  // Real-time play with the keyboard: title screen, then F2 starts a one-player game (the game reads the raw
+  // keyboard, original bindings).
   await page.open(`${base}?skip_intro=1`);
   await page.evaluate('document.getElementById("play-opfs").click()');
   await page.until('/frames\\/s/.test(document.getElementById("status").textContent)', 20000);
   await sleep(2500);
   await saveCanvas(page, join(OUT, 'live-title.png'));
-  const key = (type) => page.send('Input.dispatchKeyEvent', { type, code: 'Enter', key: 'Enter', windowsVirtualKeyCode: 13 });
+  const canvasUrl = () => page.evaluate('document.getElementById("screen").toDataURL("image/png")');
+  const title = await canvasUrl();
+  const key = (type) => page.send('Input.dispatchKeyEvent', { type, code: 'F2', key: 'F2', windowsVirtualKeyCode: 113 });
   await key('keyDown'); await sleep(300); await key('keyUp');
   await sleep(4000);
-  await saveCanvas(page, join(OUT, 'live-after-enter.png'));
+  await saveCanvas(page, join(OUT, 'live-after-f2.png'));
+  const left = (await canvasUrl()) !== title;
   const fps = await page.evaluate('document.getElementById("status").textContent');
-  report(/^\d+ frames\/s$/.test(fps), 'real-time play', `${fps}; live-title.png, live-after-enter.png`);
+  report(/^\d+ frames\/s$/.test(fps) && left, 'real-time play, F2 starts a game',
+    `${fps}${left ? '' : ', still on the title screen'}; live-title.png, live-after-f2.png`);
   await page.evaluate('document.getElementById("stop").click()');
   await sleep(500);
   // Page screenshot (the browser's own rendering of the page, not the desktop).

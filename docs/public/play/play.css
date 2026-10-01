@@ -86,9 +86,6 @@ th, td { text-align: left; padding: .45rem .7rem; border-bottom: 1px solid var(-
 th { color: var(--text-2); font-weight: 600; }
 tbody tr:nth-child(odd) { background: rgba(38, 42, 27, .5); }
 
-dialog { background: var(--bg-soft); color: var(--text); border: 1px solid var(--divider); border-radius: 10px; max-width: 640px; width: 90vw; }
-dialog::backdrop { background: rgba(0, 0, 0, .6); }
-textarea { width: 100%; font: 13px/1.45 var(--mono); background: var(--bg-alt); color: var(--text); border: 1px solid var(--divider); border-radius: 6px; padding: .6rem; }
 .error { color: var(--bad); white-space: pre-wrap; font-size: .85rem; }
 .foot .powered { margin: 0 0 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .foot .powered img { display: block; }

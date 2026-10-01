@@ -58,6 +58,9 @@ PlayStation pad circle, cross, triangle, square.
 | Pad 2 START, or pad 1 SELECT | Start a two-player game | F3 |
 | Any button | Skip the intro stills and movies | any key |
 
-The map viewer takes the d-pad to scroll and L / R to change map. The same mapping serves hosts that
-only offer virtual pads (the [gasm](./gasm) build: its pads 0 and 1 are pads 1 and 2 here, with the
-same button bits; `gasm-run` maps two keyboard layouts onto them).
+The map viewer takes the d-pad to scroll and L / R to change map.
+
+The [gasm](./gasm) build and the [browser player](/play/){target="_self"} read the keyboard the same way
+(the keys above), and gasm's virtual pads 0 and 1 are gamepads 1 and 2 here, with the same button bits.
+Fullscreen and mute are the runner's there (Alt + Enter and M are the macOS app's), and holding Esc for a
+second quits.

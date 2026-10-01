@@ -29,7 +29,7 @@ The CD can be a folder (the disc, a mounted image, a copy; passed as `--asset-di
 `.iso` file (`--asset cd=`); a `.cue` is refused, choose the `.bin` next to it. All three launchers take
 the same options: `--change-cd`, `--forget-cd`, `--help`, `--dry-run` (print the `gasm-run` command
 instead of running it), and pass anything after the CD on to `gasm-run`, for example
-`--param level=12 --param play=1` or `--keymap FILE`. `OPENRF_CD=<CD>` uses a CD for one run without
+`--param level=12 --param play=1` or `--mute`. `OPENRF_CD=<CD>` uses a CD for one run without
 saving it. Each bundle has a `README.txt` with the same details, and the licences (OpenRF GPL-3.0,
 gasm-run MIT).
 
@@ -39,9 +39,9 @@ To use your own `gasm-run` instead of a bundle:
 
 - `openrf-<version>.wasm` from the [releases](https://github.com/emdzej/openrf/releases) (with its
   SHA-256), or build it (below).
-- `gasm-run` **0.3.0 or newer** from the [gasm releases](https://github.com/emdzej/gasm/releases), or
-  `cargo install gasm-host`. Folders (`--asset-dir`) and keyboard layouts (`--keymap`) need 0.3.0; with
-  0.2.0 only a disc image (`--asset cd=`) works.
+- `gasm-run` **0.5.0 or newer** from the [gasm releases](https://github.com/emdzej/gasm/releases), or
+  `cargo install gasm-host`. The module reads the raw keyboard, which gasm added in 0.5.0; older runners
+  stop it with an error on the first frame.
 - Your Return Fire CD: the disc in a drive, a mounted disc image, or a folder you copied it to (see
   [Game data](./game-data)). A raw `.bin` or an `.iso` also works without mounting.
 
@@ -108,64 +108,22 @@ Parameters replace the app's command-line options and environment variables. Pas
 gasm-run openrf.wasm --asset-dir cd --param skip_intro=1 --param level=12 --param play=1
 ```
 
-The title screen's number keys (1-9, Shift+1-9) are not available on gasm, which exposes pads only:
-use `level=` instead.
+The title screen's number keys (1-9, Shift+1-9) work as in the app; `level=` picks any map.
 
 ## Controls
 
-gasm gives the game virtual gamepads; the game maps them as described in
-[Controls](./controls#gamepads). Connected gamepads take pads 1 and 2 in connection order; without
-them, gasm maps the keyboard with its default two-player layout (the same in `gasm-run` and in the
-browser):
+The game reads the keyboard itself, with the original key bindings, exactly as in the macOS app: W A S D
+and H J K Q E for player 1, the keypad for player 2, F2 / F3, 1-9, Alt + 3, Esc (see
+[Controls](./controls)). gasm's keyboard layout (`--keymap`, `keymap.txt`)
+doesn't apply to OpenRF: the module switches it off (`input_mode` `KEYS_RAW`), so no key reaches
+the game twice.
 
-| Pad | In the game | Keys, pad 1 | Keys, pad 2 |
-|---|---|---|---|
-| D-pad | Forward / back, turn | Arrows | I / J / K / L |
-| A | Button 1 (fire, launch, dock) | X | . (period) |
-| B | Button 2 | Z | , (comma) |
-| X | Button 3 | S | M |
-| L / R | Buttons 4 / 5 (turret, strafe) | Q / W | U / O |
-| START | Title: one-player game; bunker: launch | Enter | Right Ctrl, keypad Enter |
-| SELECT | Title: two-player game; in play: swap sides | Right Shift | Backspace |
-| START + SELECT | Leave the level | Enter + Right Shift | Right Ctrl + Backspace |
+Gamepads still arrive as gasm's virtual pads, the first connected for player 1 and the second for player
+2, mapped as in [Controls](./controls#gamepads).
 
-Pad 2's keys work while fewer than two gamepads are connected, so **two players can share one
-keyboard**: start a two-player game with pad 1's SELECT (Right Shift) or pad 2's START (Right Ctrl) on
-the title screen. With one gamepad connected, it is player 1 and pad 2 stays on the keyboard.
-
-To change the keys, write a layout file: one binding per line, `<pad 1-4> <button> <key code>...`
-(buttons `a b x y l r select start up down left right`, key codes are the W3C `KeyboardEvent.code`
-names such as `KeyW`, `ArrowUp`, `Numpad8`). `gasm-run --print-keymap` prints the default as a
-starting point; pass yours with `--keymap FILE`, or save it as `keymap.txt` in gasm's data directory
-(`~/Library/Application Support/gasm/` on macOS). For example, the original game's keys (W A S D and
-H J K for player 1, the keypad for player 2):
-
-```text
-1 up KeyW
-1 down KeyS
-1 left KeyA
-1 right KeyD
-1 a KeyH
-1 b KeyJ
-1 x KeyK
-1 l KeyQ
-1 r KeyE
-1 start Enter
-1 select ShiftRight
-2 up Numpad8
-2 down Numpad5
-2 left Numpad4
-2 right Numpad6
-2 a NumpadSubtract
-2 b NumpadAdd
-2 x NumpadEnter
-2 l Numpad7
-2 r Numpad9
-2 start Numpad0
-2 select NumpadDecimal
-```
-
-The browser player has the same format in its **Keyboard layout** dialog.
+Esc: a tap leaves the level (as in the original); holding it for a second quits `gasm-run` (in the
+browser: stops the game). Alt + Enter and M (fullscreen, mute in the app) are the runner's business on
+gasm.
 
 ## In the browser
 
@@ -206,8 +164,7 @@ gasm directory.
 
 Needs CMake, [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases) and gasm's C SDK
 (`gasm-c-sdk-<version>.zip` from the gasm releases, or the `sdk/c` folder of a gasm checkout). The C SDK
-(`gasm.h`, the toolchain file) is the same in gasm 0.2.0 and 0.3.0, so either builds the module; 0.3.0 is
-only needed to run it from a folder.
+(`gasm.h`, the toolchain file) must be 0.5.0 or newer (the raw keyboard imports), and so must the runner.
 `tools/fetch-gasm-sdk.sh` downloads both into `.deps/`:
 
 ```sh
@@ -242,10 +199,18 @@ gasm-run openrf.wasm --asset-dir cd --headless 780 --screenshot drive.png --para
   --input "100-104:START,250-254:A,450-760:UP,600-640:LEFT,740-744:A,770-774:A"
 ```
 
+Keys work the same way with `KEY(...)` (W3C key names); this run gives the same hashes as the pad
+script with START, UP + A and LEFT:
+
+```sh
+gasm-run openrf.wasm --asset-dir cd --headless 900 --param skip_intro=1 \
+  --input "30-35:KEY(F2),300-700:KEY(KeyW+KeyH),720-760:KEY(KeyA)"
+```
+
 gasm's headless Node runner (`node runners/web/headless.mjs`, same options) prints the same hashes, and so
 does the browser player (`/play/?hashframes=689&skip_intro=1&play=1&demo=fire`, after importing the CD):
 the same module, CD and parameters give the same frames and sound on every runner, whether the data comes
-from an image, a folder, OPFS or picked files. Two players without a keyboard: `--param play2=1 --param
+from an image, a folder, OPFS or picked files. Two players without input: `--param play2=1 --param
 demo=2p` (or `2pheli`, `2pwin`, `2pspectate`) scripts both pads (900 frames:
 `video_fnv32=660f4ab4 audio_fnv32=31f91835`).
 

@@ -26,7 +26,7 @@ data, you need your own Return Fire CD):
 | `openrf-gasm-<version>-macos-universal.zip` | `Return Fire (gasm).app`: `openrf.wasm` with the bundled `gasm-run` |
 | `openrf-gasm-<version>-linux-x86_64.tar.gz`, `-linux-arm64.tar.gz` | Linux gasm bundle, `./openrf.sh` |
 | `openrf-gasm-<version>-windows-x86_64.zip` | Windows gasm bundle, `OpenRF.cmd` |
-| `openrf-<version>.wasm` | The module alone, for your own `gasm-run` 0.3.0+ |
+| `openrf-<version>.wasm` | The module alone, for your own `gasm-run` 0.5.0+ |
 
 The bundle launchers ask for the CD once (a folder, a mounted image, or a raw `.bin` / `.iso`) and remember
 it; `--change-cd` picks another. First-run notes (Gatekeeper, SmartScreen) and details:
@@ -63,7 +63,7 @@ gasm-run build-gasm/openrf.wasm --asset-dir /Volumes/RFIRE     # the CD, a mount
 gasm-run build-gasm/openrf.wasm --asset "cd=Return Fire (Europe) (En,Fr,De,Es,It).bin"   # or an image
 ```
 
-`--asset-dir` and the two-player keyboard layout need gasm 0.3.0 or newer.
+The module needs gasm 0.5.0 or newer (it reads the raw keyboard, with the original key bindings).
 
 Options become launch params there (`--param skip_intro=1`, `play`, `play2`, `level`, `demo`, `p1`, `p2`):
 see [docs/guide/gasm.md](docs/guide/gasm.md).

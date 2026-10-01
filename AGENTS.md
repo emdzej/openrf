@@ -153,7 +153,9 @@ device clock), and neither is the first intro still (a stray input edge can skip
 `src/platform_gasm.c` (the only file that includes `gasm.h`; ABI in `~/Projects/my/gasm/spec/ABI.md`):
 62.5 Hz (`set_frame_rate`), one `app_frame` per `gasm_frame`, then `audio_frames_for_frame(125, 2)` frames
 of `audio_render` pushed with `audio_push`; `plat_ticks_ms` = 16 ms per present (the SDL `OPENRF_FIXED_STEP`
-clock); pads from `input_pad(0..3)`, no keyboard; storage `gasm:storage` (`RFire_HS`); errors via `log` and
+clock); gamepads from `input_pad(0..3)`, the keyboard raw (`input_mode(KEYS_RAW)` turns gasm's keymap off;
+`key_state` mapped onto `keys.h`, `key_events` for the any-key edge, read at the first poll of a frame), so
+input.c's original bindings apply as on SDL; storage `gasm:storage` (`RFire_HS`); errors via `log` and
 `gasm_init` returning 1; app quit = `app_exit` + `proc_exit(0)`. Data: asset `cd` (or `rom`) = disc image
 (`vfs_mount_image` over `asset_read_at`), else the disc files as assets (`--asset-dir`, names tried as
 spelled and upper-cased; `vfs_list` probes `RFMAPnnn.RFM`). Launch params replace argv/env: `skip_intro`,
@@ -174,14 +176,14 @@ $RUN build-gasm/openrf.wasm --asset-dir cd --headless 689 ...  # folder mode: sa
 
 Expected for that run: `video_fnv32=d014dcfb audio_fnv32=f1520dc1 audio_frames=486158` (two players:
 `--headless 900 --param skip_intro=1 --param play2=1 --param demo=2p` gives `video_fnv32=660f4ab4
-audio_fnv32=31f91835 audio_frames=635040`). Needs a gasm 0.3.0+ runner (`--asset-dir`, file-backed
-assets, keymaps); `tools/fetch-gasm-sdk.sh` pins `GASM_VERSION` for the SDK and the runners, together with
+audio_fnv32=31f91835 audio_frames=635040`). Needs a gasm 0.5.0+ runner and C SDK (raw keyboard;
+older runners trap on the imports); `tools/fetch-gasm-sdk.sh` pins `GASM_VERSION` for the SDK and the runners, together with
 `@emdzej/gasm-host` in `docs/package.json`. The Node runner preloads `--asset` files (about 750 MB RSS
 with the `.bin`) but reads `--asset-dir` folders on demand (about 70 MB); native reads both on demand. For a gasm
 change: the `screenshots.sh` cases compared against the SDL build (`OPENRF_FIXED_STEP=1`, `OPENRF_HS`
 pointing at a missing file, `USER="Player 1"`) must be pixel-identical, and gasm-run twice and the Node
 runner must print identical hashes. Unlike the SDL build, movie frames are reproducible on gasm (the mixer
-runs on the frame). `--input "FROM-TO:BTN+BTN,..."` scripts pad 1 (frames from 0). Don't open a gasm-run
+runs on the frame). `--input "FROM-TO:BTN+BTN,..."` scripts pad 1 (frames from 0), `KEY(F2+KeyW)` the keyboard (W3C names; `30-35:KEY(F2),300-700:KEY(KeyW+KeyH)` must hash like `30-35:START,300-700:UP+A`). Don't open a gasm-run
 window in unattended runs (use `--headless`).
 
 ## Browser player
@@ -190,7 +192,8 @@ window in unattended runs (use `--headless`).
 folder (`showDirectoryPicker`, else `<input webkitdirectory>`) or an `.iso`/`.bin`; `cd.js` checks it
 (`RFIRE.BIN` 431,616 bytes, `ART/ART.CAR`, `SOUND/SCORE.WAV`) and copies `RFIRE.BIN` + `ART SOUND TITLE
 WORLDS` into OPFS `openrf-cd/` with csfs (marker `.openrf-import.json` written last), then the worker reads it
-through gasm's lazy OPFS provider; "Play without importing" uses the File/Blob provider. Storage namespace
+through gasm's lazy OPFS provider; "Play without importing" uses the File/Blob provider. Keys go to the game raw
+(gasm's `BrowserInput`, passed as `inputs` to `GasmWorker.frames`; no keymap), gamepads as pads; holding Esc stops. Storage namespace
 `openrf` (IndexedDB). Query params: the launch params, `hashframes=N` (virtual time, no input, prints the
 headless hash line into `globalThis.__openrfResult`), `autoplay`. **Never put game data in `docs/public/`.**
 The gasm/csfs files in `vendor/` are generated from the npm packages pinned in `docs/package.json` (`docs/scripts/vendor-web.sh`); bump the pins, never edit the copies.
