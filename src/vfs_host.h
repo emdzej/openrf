@@ -1,5 +1,5 @@
 /* Host-filesystem backends of the file layer (POSIX): directories and disc-image files. Used by the
-   SDL build and the tests; a backend without a filesystem (gasm) mounts a VfsSource instead. */
+   tests and tools; a backend without a filesystem (gasm) mounts a VfsSource instead. */
 #pragma once
 #include "vfs.h"
 

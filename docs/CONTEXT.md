@@ -1,4 +1,4 @@
-# OpenRF — native macOS reimplementation of Return Fire (Win95, 1996, Silent Software)
+# OpenRF — reimplementation of Return Fire (Win95, 1996, Silent Software)
 
 > Start with [`AGENTS.md`](../AGENTS.md) at the repository root (rules, build/test, traps); this file keeps the original per-format working notes.
 

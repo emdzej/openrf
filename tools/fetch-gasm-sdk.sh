@@ -14,7 +14,7 @@ WASI_SDK_VERSION=${WASI_SDK_VERSION:-34}
 # Keep it in step with @emdzej/gasm-host in docs/package.json (the browser player's runner).
 # 0.5.0 is the minimum runner: the module reads the raw keyboard (input_mode, key_state, key_events;
 # older runners trap on them). 0.3.0 added folders (--asset-dir), file-backed assets and Worker mode.
-GASM_VERSION=${GASM_VERSION:-0.5.0}
+GASM_VERSION=${GASM_VERSION:-0.6.0}
 if [ "${1:-}" = --version ]; then echo "$GASM_VERSION"; exit 0; fi
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)  PLAT=arm64-macos ;;

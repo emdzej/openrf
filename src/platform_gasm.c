@@ -5,13 +5,12 @@
                  frame's share of the mixer output
      gasm_exit   app_exit (high scores are written through gasm:storage as they happen)
 
-   Everything is deterministic: the clock is 16 ms per presented frame (like the SDL build's
-   OPENRF_FIXED_STEP=1), audio is rendered on the frame (never on another thread), input is the runner's
-   per-frame pad and keyboard state. Same module + assets + params + input = same video and audio on every
-   runner.
+   Everything is deterministic: the clock is 16 ms per presented frame, audio is rendered on the frame
+   (never on another thread), input is the runner's per-frame pad and keyboard state. Same module +
+   assets + params + input = same video and audio on every runner.
 
    Input: the raw keyboard (gasm 0.5.0: input_mode KEYS_RAW, key_state, key_events), so the game gets the
-   original key bindings exactly as in the SDL build (input.c), with the runner's keymap switched off for
+   original key bindings (input.c), with the runner's keymap switched off for
    the keyboard; gamepads still arrive as pads 0-3. Older runners trap on these imports.
 
    Game data (vfs.h), first match wins:
@@ -22,7 +21,7 @@
       --asset ART/ART.CAR=... per file). Names are tried as the game spells them and upper-cased (the
       disc's case); runners that fold case themselves match either way.
 
-   Launch params (gasm-run --param k=v, URL query in the browser) replace the SDL build's arguments and
+   Launch params (gasm-run --param k=v, URL query in the browser) stand in for the command line and
    environment: level, play, play2, skip_intro, viewer -> --level/--play/--play2/--skip-intro/--viewer;
    demo -> OPENRF_DEMO, p1/p2 -> the player names (USER/OPENRF_P1, OPENRF_P2), cam_h -> OPENRF_CAM_H,
    sfx_log -> OPENRF_SFX_LOG. They are put into wasi-libc's environment, where the core reads them. */
@@ -40,6 +39,10 @@ _Static_assert(PAD_A == GASM_BTN_A && PAD_B == GASM_BTN_B && PAD_X == GASM_BTN_X
                PAD_L == GASM_BTN_L && PAD_R == GASM_BTN_R && PAD_SELECT == GASM_BTN_SELECT &&
                PAD_START == GASM_BTN_START && PAD_UP == GASM_BTN_UP && PAD_DOWN == GASM_BTN_DOWN &&
                PAD_LEFT == GASM_BTN_LEFT && PAD_RIGHT == GASM_BTN_RIGHT, "PAD_* must be the gasm button bits");
+
+/* The window / tab title and what launchers show (custom section gasm.title, gasm 0.6.0; older runners
+   ignore it). */
+GASM_TITLE("Return Fire");
 
 /* 62.5 Hz: one original 16 ms tick per frame. */
 enum { RATE_NUM = 125, RATE_DEN = 2, MAX_AUDIO_FRAMES = 1024 };
@@ -149,8 +152,7 @@ static void init_key_table(void)
     for (size_t i = 0; i < sizeof pairs / sizeof *pairs; i++) hid_of[pairs[i][0]] = pairs[i][1];
 }
 
-/* Keys: key_state for what is held, key_events for "a key went down" (catches taps shorter than a frame,
-   like the SDL build's KEY_DOWN events). */
+/* Keys: key_state for what is held, key_events for "a key went down" (catches taps shorter than a frame). */
 static bool read_keys(void)
 {
     uint8_t st[GASM_KEY_STATE_BYTES];

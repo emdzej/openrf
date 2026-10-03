@@ -2,11 +2,10 @@
 
 <a class="gasm-badge" href="https://gasm.emdzej.pl"><img class="gasm-badge-light" src="https://gasm.emdzej.pl/badge/built-for-gasm-light.svg" alt="Built for gasm" width="120" height="44"><img class="gasm-badge-dark" src="https://gasm.emdzej.pl/badge/built-for-gasm-dark.svg" alt="Built for gasm" width="120" height="44"></a>
 
-Besides the macOS app, OpenRF builds as **`openrf.wasm`**, a game module for
-[gasm](https://gasm.emdzej.pl), a portable game runtime on WebAssembly. The same file runs in
-gasm's native runner (`gasm-run`, macOS, Linux, Windows) and in its browser runner. It is the same
-engine as the app, with a different platform layer: the frames, sounds and gameplay are identical
-(the test runs below compare them pixel for pixel).
+OpenRF is **`openrf.wasm`**, a game module for [gasm](https://gasm.emdzej.pl), a portable game runtime
+on WebAssembly. The same file runs in gasm's native runner (`gasm-run`, macOS, Linux, Windows) and in its
+browser runner, with identical frames, sounds and gameplay (the test runs below compare them hash for
+hash).
 
 On gasm the game runs at a fixed 62.5 frames per second, one tick of the original's 16 ms game
 clock per frame, and everything is deterministic: the same inputs give the same game on every
@@ -29,7 +28,9 @@ The CD can be a folder (the disc, a mounted image, a copy; passed as `--asset-di
 `.iso` file (`--asset cd=`); a `.cue` is refused, choose the `.bin` next to it. All three launchers take
 the same options: `--change-cd`, `--forget-cd`, `--help`, `--dry-run` (print the `gasm-run` command
 instead of running it), and pass anything after the CD on to `gasm-run`, for example
-`--param level=12 --param play=1` or `--mute`. `OPENRF_CD=<CD>` uses a CD for one run without
+`--param level=12 --param play=1`, `--mute`, or `--filter xbr` (gasm-run 0.6.0: how the picture is
+scaled up, `sharp` by default, also `nearest`, `xbr`, `fsr`, `crt`; `--integer-scale` for whole
+multiples only). `OPENRF_CD=<CD>` uses a CD for one run without
 saving it. Each bundle has a `README.txt` with the same details, and the licences (OpenRF GPL-3.0,
 gasm-run MIT).
 
@@ -69,8 +70,10 @@ gasm-run openrf.wasm --asset "cd=Return Fire (Europe) (En,Fr,De,Es,It).bin"
 
 Either way the data is read on demand, not loaded: the 220 MB music file is streamed and the game
 starts at once. Measured with `gasm-run --headless` (the `fire` demo below, 689 frames): 53 MB maximum
-resident memory with `--asset-dir`, 52 MB with `--asset cd=<.bin>`. Esc closes the runner. `--mute`
-silences it.
+resident memory with `--asset-dir`, 52 MB with `--asset cd=<.bin>`. Holding Esc closes the runner.
+`--mute` silences it; `--filter <sharp|nearest|xbr|fsr|crt>` and `--integer-scale` choose how the
+320x240 / 640x480 picture is scaled to the window (gasm-run 0.6.0+). The window is titled
+"Return Fire".
 
 ### Mount your CD
 
@@ -89,30 +92,29 @@ More in [Mount it](/howto/extract-cd#mount-it).
 
 ## Launch parameters
 
-Parameters replace the app's command-line options and environment variables. Pass them as
-`--param name=value` (in the browser runner: URL query parameters).
+Pass options to the game as `--param name=value` (in the browser runner: URL query parameters).
 
-| Parameter | Effect | App equivalent |
-|---|---|---|
-| `skip_intro=1` | Skip the intro stills and movies | `--skip-intro` |
-| `play=1` | Go straight into the `level` map (level 1 by default) | `--play` |
-| `play2=1` | Go straight into a two-player game ("Driving School", or the `level` 2-player map) | `--play2` |
-| `level=<n or path>` | Map: 1-100 one-player, 101-204 two-player, or a path such as `WORLDS/2PLAYER/LEVEL3/RFMAP115.RFM` | `--level` |
-| `viewer=1` | The map viewer | `--viewer` |
-| `p1=<name>`, `p2=<name>` | Player names for the high scores (default "Player 1" / "Player 2") | `$USER`, `OPENRF_P1/P2` |
-| `demo=<mode>` | Scripted input for tests: `1`, `fire`, `jeep`, `msv`, `heli`, `turret`, `drone`, `sub`, `rules`, `win`; with `play2=1`: `2p`, `2pheli`, `2pwin`, `2pspectate` | `OPENRF_DEMO` |
-| `cam_h=<n>` | Driving camera height (debug) | `OPENRF_CAM_H` |
-| `sfx_log=1` | Sound-effect log (debug) | `OPENRF_SFX_LOG` |
+| Parameter | Effect |
+|---|---|
+| `skip_intro=1` | Skip the intro stills and movies |
+| `play=1` | Go straight into the `level` map (level 1 by default) |
+| `play2=1` | Go straight into a two-player game ("Driving School", or the `level` 2-player map) |
+| `level=<n or path>` | Map: 1-100 one-player, 101-204 two-player, or a path such as `WORLDS/2PLAYER/LEVEL3/RFMAP115.RFM` |
+| `viewer=1` | The map viewer |
+| `p1=<name>`, `p2=<name>` | Player names for the high scores (default "Player 1" / "Player 2") |
+| `demo=<mode>` | Scripted input for tests: `1`, `fire`, `jeep`, `msv`, `heli`, `turret`, `drone`, `sub`, `rules`, `win`; with `play2=1`: `2p`, `2pheli`, `2pwin`, `2pspectate` |
+| `cam_h=<n>` | Driving camera height (debug) |
+| `sfx_log=1` | Sound-effect log (debug) |
 
 ```sh
 gasm-run openrf.wasm --asset-dir cd --param skip_intro=1 --param level=12 --param play=1
 ```
 
-The title screen's number keys (1-9, Shift+1-9) work as in the app; `level=` picks any map.
+The title screen's number keys (1-9, Shift+1-9) start the first map of a difficulty level; `level=` picks any map.
 
 ## Controls
 
-The game reads the keyboard itself, with the original key bindings, exactly as in the macOS app: W A S D
+The game reads the keyboard itself, with the original key bindings: W A S D
 and H J K Q E for player 1, the keypad for player 2, F2 / F3, 1-9, Alt + 3, Esc (see
 [Controls](./controls)). gasm's keyboard layout (`--keymap`, `keymap.txt`)
 doesn't apply to OpenRF: the module switches it off (`input_mode` `KEYS_RAW`), so no key reaches
@@ -122,8 +124,8 @@ Gamepads still arrive as gasm's virtual pads, the first connected for player 1 a
 2, mapped as in [Controls](./controls#gamepads).
 
 Esc: a tap leaves the level (as in the original); holding it for a second quits `gasm-run` (in the
-browser: stops the game). Alt + Enter and M (fullscreen, mute in the app) are the runner's business on
-gasm.
+browser: stops the game). Fullscreen and muting are the runner's business (`--mute`; in the browser,
+the buttons under the picture).
 
 ## In the browser
 
@@ -137,6 +139,9 @@ once. **Play without importing** reads the picked files in place instead; a disc
 
 - Sound starts with the first click (browsers require it). Fullscreen: the button, or double-click the
   picture.
+- Scaling: the menu under the picture picks gasm's upscaling filter (`sharp` by default, `nearest`,
+  `xbr`, `fsr`, `crt`) and **integer** limits it to whole multiples; also as `?filter=xbr` and `?integer`
+  in the URL. It needs WebGL 2; without it the picture is scaled by the browser.
 - High scores are kept in the site's IndexedDB. **Remove imported data** deletes the CD copy (not the
   scores).
 - The browser may clear site data when the disk is nearly full; **Keep it** asks it not to
@@ -146,8 +151,8 @@ once. **Play without importing** reads the picked files in place instead; a disc
 
 ## High scores
 
-High scores are kept in gasm's per-game storage under the key `RFire_HS`, in the same format as the
-app's file. The namespace is the module's file name, so for `openrf.wasm`:
+High scores are kept in gasm's per-game storage under the key `RFire_HS`, in the original's format.
+The namespace is the module's file name, so for `openrf.wasm`:
 
 - `gasm-run`: `~/Library/Application Support/gasm/openrf/RFire_HS` (macOS),
   `~/.local/share/gasm/openrf/RFire_HS` (Linux), `%APPDATA%\gasm\openrf\RFire_HS` (Windows);
@@ -157,15 +162,15 @@ app's file. The namespace is the module's file name, so for `openrf.wasm`:
   [play page](/play/){target="_self"} that is `openrf.emdzej.pl`'s storage.
 - Headless runs start with empty storage (unless `--storage-dir` is given).
 
-To carry over the app's scores, copy `~/Library/Application Support/Return Fire/RFire_HS` into the
-gasm directory.
+Scores from the old native macOS app (up to 0.3.0) carry over: copy
+`~/Library/Application Support/Return Fire/RFire_HS` into the gasm directory.
 
 ## Build
 
 Needs CMake, [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases) and gasm's C SDK
 (`gasm-c-sdk-<version>.zip` from the gasm releases, or the `sdk/c` folder of a gasm checkout). The C SDK
-(`gasm.h`, the toolchain file) must be 0.5.0 or newer (the raw keyboard imports), and so must the runner.
-`tools/fetch-gasm-sdk.sh` downloads both into `.deps/`:
+(`gasm.h`, the toolchain file) must be 0.5.0 or newer (the raw keyboard imports), and so must the runner;
+the pinned version is 0.6.0. `tools/fetch-gasm-sdk.sh` downloads both into `.deps/`:
 
 ```sh
 tools/fetch-gasm-sdk.sh
@@ -182,7 +187,8 @@ start-up compilation (about 45 ms), compile it ahead of time: `gasm-run openrf.w
 
 `gasm-run --headless N` runs N frames without a window or sound and prints hashes of everything
 the game showed and played; with `--screenshot out.png` it saves the last frame. Frame N shows the
-game at 16 x (N - 1) ms, the frame the app saves with `OPENRF_FIXED_STEP=1 OPENRF_SHOT_MS=16 x (N - 1)`.
+game at 16 x (N - 1) ms, so a moment at T ms is frame ceil(T / 16) + 1 (11000 ms: frame 689).
+`tools/screenshots.sh` makes the documentation screenshots this way.
 
 ```sh
 gasm-run openrf.wasm --asset-dir cd --headless 689 --screenshot fire.png \

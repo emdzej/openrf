@@ -9,11 +9,12 @@ git tag 0.1.0
 git push origin 0.1.0
 ```
 
-The workflow builds a universal `Return Fire.app` with SDL3 statically linked, checks that
-it depends only on system libraries, signs it ad hoc, and attaches
-`OpenRF-<version>-macos-universal.zip` plus a SHA-256 checksum to a new GitHub Release.
+The workflow builds `openrf-<version>.wasm` and packages it with the released `gasm-run`
+(`GASM_VERSION` in `tools/fetch-gasm-sdk.sh`) into the gasm bundles for macOS (universal), Linux x86_64
+and arm64, and Windows x86_64, smoke-tests each bundle on its own system, and attaches the module, the
+four bundles and their SHA-256 checksums to a new GitHub Release.
 
-Run it manually from the Actions tab (*Release → Run workflow*) to get a snapshot build as a
-workflow artifact without publishing a release.
+Run it manually from the Actions tab (*Release → Run workflow*) to get a snapshot build as
+workflow artifacts without publishing a release.
 
 Remember to bump `project(OpenRF VERSION …)` in `CMakeLists.txt` first.

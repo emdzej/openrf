@@ -1,7 +1,6 @@
-/* Keyboard key codes for plat_key_down(). The values are USB HID keyboard usages (page 0x07), which
-   are also SDL scancode values, so the SDL backend passes them straight through (platform_sdl.c checks
-   this at compile time) and other backends map their key events onto the same numbers. Only the keys
-   the game reads are listed. */
+/* Keyboard key codes for plat_key_down(). The values are USB HID keyboard usages (page 0x07) (also SDL
+   scancode values); a backend maps its key events onto these numbers (platform_gasm.c: from GASM_KEY_*).
+   Only the keys the game reads are listed. */
 #pragma once
 
 enum {

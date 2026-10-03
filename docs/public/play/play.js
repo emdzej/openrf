@@ -8,8 +8,10 @@
 //                  same "frames=... video_fnv32=... audio_fnv32=..." line as gasm-run --headless
 //                  (globalThis.__openrfResult)
 //   autoplay       start the imported CD right away
+//   filter=sharp|nearest|xbr|fsr|crt, integer   how the frames are scaled up (also in the toolbar)
 import { BrowserInput, ProcExit, Resampler } from './vendor/gasm/gasm-host.js';
 import { GasmWorker } from './vendor/gasm/gasm-worker.js';
+import { FILTERS, GlPresenter } from './vendor/gasm/gasm-present.js';
 import * as cd from './cd.js';
 
 const $ = (id) => document.getElementById(id);
@@ -120,12 +122,49 @@ $('sound').onclick = () => { startAudio(); setMuted(!muted); };
 setMuted(muted);
 
 // ---- display ------------------------------------------------------------------------------
+// gasm's presenter (WebGL 2): letterboxed at the canvas's device-pixel size with an upscaling filter
+// (?filter= / the toolbar, kept in localStorage; default sharp = plain pixel doubling at whole factors),
+// optionally whole multiples only (?integer). Without WebGL 2, a canvas 2D scaled up by CSS.
 const canvas = $('screen');
-const ctx2d = canvas.getContext('2d');
+const view = {
+  filter: FILTERS.includes(query.get('filter')) ? query.get('filter') : localStorage.getItem('openrf.filter') ?? 'sharp',
+  integerScale: query.has('integer') || localStorage.getItem('openrf.integer') === '1',
+};
+if (!FILTERS.includes(view.filter)) view.filter = 'sharp';
+let presenter = null, ctx2d = null, shown = null;   // shown: the frame on screen [rgba, w, h]
 function present(rgba, w, h) {
+  shown = [rgba, w, h];
+  if (!ctx2d && !presenter) {
+    presenter = GlPresenter.create(canvas);
+    if (presenter) canvas.classList.add('gl');
+    else { ctx2d = canvas.getContext('2d'); show('view-controls', false); }
+  }
+  if (presenter) {
+    const size = [Math.round(canvas.clientWidth * devicePixelRatio) || w, Math.round(canvas.clientHeight * devicePixelRatio) || h];
+    return presenter.draw(rgba, w, h, size, view);
+  }
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   ctx2d.putImageData(new ImageData(rgba, w, h), 0, 0);
 }
+const redraw = () => { if (shown) present(...shown); };
+new ResizeObserver(redraw).observe(canvas);
+for (const f of FILTERS) $('filter').add(new Option(f, f));
+$('filter').value = view.filter;
+$('integer').checked = view.integerScale;
+$('filter').onchange = () => { view.filter = $('filter').value; localStorage.setItem('openrf.filter', view.filter); redraw(); };
+$('integer').onchange = () => {
+  view.integerScale = $('integer').checked;
+  localStorage.setItem('openrf.integer', view.integerScale ? '1' : '0');
+  redraw();
+};
+/** The frame on screen at its own size, as a PNG data URL (tests; independent of the filter). */
+globalThis.__openrfFramePng = () => {
+  if (!shown) return null;
+  const [rgba, w, h] = shown, c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').putImageData(new ImageData(rgba, w, h), 0, 0);
+  return c.toDataURL('image/png');
+};
 $('fullscreen').onclick = () => {
   if (document.fullscreenElement) document.exitFullscreen();
   else ($('stage').requestFullscreen ?? $('stage').webkitRequestFullscreen)?.call($('stage'));
@@ -133,16 +172,17 @@ $('fullscreen').onclick = () => {
 canvas.ondblclick = () => $('fullscreen').onclick();
 
 // ---- running the game ---------------------------------------------------------------------
-let worker = null, running = false, inflight = false, rafId = 0, wasmBytes = null, lastLog = '';
+let worker = null, running = false, inflight = false, rafId = 0, wasmModule = null, lastLog = '';
 let acc = 0, last = 0, fpsN = 0, fpsT = 0;
 
+/** openrf.wasm, compiled once; every start shares the module with its worker. */
 async function loadWasm() {
-  if (!wasmBytes) {
+  if (!wasmModule) {
     const r = await fetch(new URL('openrf.wasm', import.meta.url));
     if (!r.ok) throw new Error(`openrf.wasm: HTTP ${r.status}`);
-    wasmBytes = await r.arrayBuffer();
+    wasmModule = await WebAssembly.compile(await r.arrayBuffer());
   }
-  return wasmBytes.slice(0); // start() transfers its copy to the worker
+  return wasmModule;
 }
 
 function onLog(msg) {
@@ -219,8 +259,8 @@ function tick(now) {
     const pads = readPads();
     inflight = true;
     acc -= due * period;
-    const inputs = Array.from({ length: due }, (_, k) => keyboard.frame(k === 0));
-    worker.frames(Array.from({ length: due }, () => pads), true, { inputs }).then((r) => {
+    const steps = Array.from({ length: due }, (_, k) => ({ pads, input: keyboard.frame(k === 0) }));
+    worker.frames(steps, true).then((r) => {
       inflight = false;
       fpsN += due;
       if (r.frame) present(r.frame.rgba, r.frame.width, r.frame.height);

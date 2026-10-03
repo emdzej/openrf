@@ -20,7 +20,7 @@ the 3DO's cel engine, drawing into an 8-bit DirectDraw surface, and the game log
 
 | Path | Contents |
 |---|---|
-| `src/` | Portable core: app state machine, file layer (`vfs.c`), audio mixer, asset loaders, movies, music, sound, HUD, front end; the SDL3 backend `platform_sdl.c` |
+| `src/` | Portable core: app state machine, file layer (`vfs.c`), audio mixer, asset loaders, movies, music, sound, HUD, front end; the gasm backend `platform_gasm.c` |
 | `src/render/` | Cel rasteriser, camera, world renderer, 3D models |
 | `src/game/` | Simulation: objects, collision, vehicles, weapons, effects, AI, rules |
 | `tools/` | Format decoders, table generators, reference renderer |

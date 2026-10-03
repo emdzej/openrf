@@ -1,6 +1,6 @@
 name: CI
 
-# Builds the app and every test binary, the gasm module openrf.wasm and the gasm bundles (macOS, Linux,
+# Builds the native test programs, the gasm module openrf.wasm and the gasm bundles (macOS, Linux,
 # Windows; smoke-tested on macOS and Linux x86_64) on each push / PR.
 # The tests need the original game data (not redistributable), so CI only
 # compiles them; run them locally with the extracted CD in ./cd.
@@ -15,18 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: macos-latest
+  native:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-
-      - name: install dependencies
-        run: brew install sdl3
 
       - name: configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
-      - name: build (app + tests)
+      - name: build (core + tests)
         run: cmake --build build -j
 
       - name: check Python tools compile
@@ -37,8 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The SDK version lives in tools/fetch-gasm-sdk.sh (GASM_VERSION). The module uses the raw keyboard
-      # imports of gasm 0.5.0, so the SDK and the runner must be 0.5.0 or newer.
+      # The SDK version lives in tools/fetch-gasm-sdk.sh (GASM_VERSION, 0.6.0). The module uses the raw
+      # keyboard imports of gasm 0.5.0, so a runner must be 0.5.0 or newer.
       - name: fetch wasi-sdk and the gasm C SDK
         run: tools/fetch-gasm-sdk.sh
 

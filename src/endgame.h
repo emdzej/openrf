@@ -29,8 +29,8 @@ void endgame_cancel(void);                  /* quitting mid-sequence: release th
 /* RecordHighScore: 1-player wins keep the best time per (level, map); 2-player games count wins / draws per
    pair of names. Returns true if the table changed. */
 bool highscore_record(const GameResult *r);
-/* Where the table is stored (plat_storage_location("RFire_HS"); SDL build: ~/Library/Application
-   Support/Return Fire/RFire_HS, OPENRF_HS overrides it for the tests). */
+/* Where the table is stored (plat_storage_location("RFire_HS"); the tests' storage_file.c:
+   ~/Library/Application Support/Return Fire/RFire_HS, OPENRF_HS overrides it). */
 const char *highscore_path(void);
 /* Decoded 1-player records (for the log / tests): returns the count, fills up to max. */
 typedef struct { int level; char map[33], player[33]; uint32_t time_ms; } HighScore1P;

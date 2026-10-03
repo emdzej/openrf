@@ -6,28 +6,22 @@ Every download is on the [releases page](https://github.com/emdzej/openrf/releas
 
 | System | Download | Notes |
 |---|---|---|
-| macOS 11+ (Apple Silicon, Intel) | `OpenRF-<version>-macos-universal.zip` | **Recommended on a Mac.** The native app (SDL3) |
-| macOS 11+ (Apple Silicon, Intel) | `openrf-gasm-<version>-macos-universal.zip` | `Return Fire (gasm).app`: the gasm build, asks for the CD itself |
+| macOS (Apple Silicon, Intel) | `openrf-gasm-<version>-macos-universal.zip` | `Return Fire (gasm).app`, asks for the CD itself |
 | Linux x86_64 | `openrf-gasm-<version>-linux-x86_64.tar.gz` | gasm bundle: `openrf.sh` launcher |
 | Linux arm64 | `openrf-gasm-<version>-linux-arm64.tar.gz` | gasm bundle: `openrf.sh` launcher |
 | Windows 10/11 x86_64 | `openrf-gasm-<version>-windows-x86_64.zip` | gasm bundle: `OpenRF.cmd` launcher |
 | Any browser | nothing to download | [Play in the browser](/play/){target="_self"} (Chrome, Edge, Firefox, Safari) |
-| Your own gasm runner | `openrf-<version>.wasm` | Run it with `gasm-run` 0.5.0 or newer, see [Running on gasm](./gasm) |
+| Your own gasm runner | `openrf-<version>.wasm` | Run it with `gasm-run` 0.5.0 or newer (0.6.0 recommended), see [Running on gasm](./gasm) |
 
-The gasm bundles are `openrf.wasm` with the matching released `gasm-run` (the
-[gasm](https://gasm.emdzej.pl) WebAssembly game runtime) and a small launcher that finds your CD. They play
-exactly like the native app: same frames, same sound, same gameplay. Native SDL builds for Linux and
-Windows are planned.
+The bundles are `openrf.wasm` with the matching released `gasm-run` (the
+[gasm](https://gasm.emdzej.pl) WebAssembly game runtime) and a small launcher that finds your CD. Every
+system, and the browser, runs the same module: same frames, same sound, same gameplay.
 
-## macOS: the native app
+Up to 0.3.0 there was also a native macOS app (`OpenRF-<version>-macos-universal.zip`); from 0.4.0 on,
+`Return Fire (gasm).app` replaces it. Its high scores carry over, see
+[Running on gasm](./gasm#high-scores).
 
-1. Download `OpenRF-<version>-macos-universal.zip` and unzip it.
-2. Move `Return Fire.app` wherever you like (e.g. `/Applications`).
-3. OpenRF is not notarized by Apple. The first time you start it, **right-click the app → Open**, then
-   confirm. (Or run `xattr -dr com.apple.quarantine "/Applications/Return Fire.app"`.)
-4. Give it the [game data](./game-data).
-
-## macOS: Return Fire (gasm).app
+## macOS
 
 1. Download `openrf-gasm-<version>-macos-universal.zip`, unzip it and move `Return Fire (gasm).app` where
    you like.
@@ -44,6 +38,7 @@ The log is `~/Library/Logs/OpenRF/gasm.log`. From Terminal:
 ```sh
 "Return Fire (gasm).app/Contents/MacOS/OpenRF" --help
 "Return Fire (gasm).app/Contents/MacOS/OpenRF" /Volumes/RFIRE --param level=12 --param play=1
+"Return Fire (gasm).app/Contents/MacOS/OpenRF" /Volumes/RFIRE --filter crt   # after the CD: gasm-run options
 ```
 
 ## Linux
@@ -80,7 +75,6 @@ gasm-run. On an error the console window stays open so you can read it.
 
 | | Saved CD | High scores | Log |
 |---|---|---|---|
-| Native macOS app | (the data folder, see [Game data](./game-data)) | `~/Library/Application Support/Return Fire/RFire_HS` | Terminal output |
 | `Return Fire (gasm).app` | `~/Library/Application Support/OpenRF/cd-location` | `~/Library/Application Support/gasm/openrf/RFire_HS` | `~/Library/Logs/OpenRF/gasm.log` |
 | Linux bundle | `~/.config/openrf/cd-location` | `~/.local/share/gasm/openrf/RFire_HS` | the terminal, or `~/.local/state/openrf/gasm.log` from a menu |
 | Windows bundle | `%APPDATA%\OpenRF\cd-location` | `%APPDATA%\gasm\openrf\RFire_HS` | the console window |

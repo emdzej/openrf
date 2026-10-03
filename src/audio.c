@@ -1,8 +1,8 @@
-/* Portable mixer (audio.h). Replaces the SDL backend's separate audio streams (music, movie PCM, SFX)
-   with one pull function, so any host that can play 44100 Hz stereo can run the game's audio.
+/* Portable mixer (audio.h): music, movie PCM and SFX behind one pull function, so any host that can play
+   44100 Hz stereo can run the game's audio.
 
-   Resampling: sources that are not 44100 Hz (the 22050 Hz movie soundtracks) are linearly interpolated;
-   SDL used its own (band-limited) resampler, so movie audio differs slightly in the top octave. Music
+   Resampling: sources that are not 44100 Hz (the 22050 Hz movie soundtracks) are linearly interpolated
+   (not band-limited, so the top octave of movie audio aliases slightly). Music
    (44100 Hz S16 stereo) and the SFX mixer pass through unchanged. */
 #include "audio.h"
 #include "platform.h"

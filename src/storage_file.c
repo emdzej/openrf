@@ -1,4 +1,4 @@
-/* plat_storage_* on the host filesystem (SDL backend and the tests): one file per key in
+/* plat_storage_* on the host filesystem (the tests): one file per key in
    ~/Library/Application Support/Return Fire/ (the high-score file RFire_HS keeps the location and
    format the port has always used). OPENRF_HS overrides the RFire_HS file path (tests). */
 #include "platform.h"

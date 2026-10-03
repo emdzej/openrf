@@ -1,14 +1,15 @@
 /* Platform contract: everything the portable game core needs from the host. The core (every file in
    src/ except the backends) includes no platform headers; a backend implements the functions below and
-   drives the app (app.h). Backends: platform_sdl.c (SDL3; with storage_file.c and vfs_host.c).
+   drives the app (app.h). Backend: platform_gasm.c (gasm). The tests supply
+   their own pieces (vfs_host.c, storage_file.c).
 
    A backend's job, in order:
    1. Mount the game data (vfs.h): a directory, a disc image, or a VfsSource over host-provided bytes.
    2. app_init(argc, argv) once (it calls plat_init). false: exit with an error (already reported
       through plat_error).
    3. Call app_frame() repeatedly until it returns false. Each call ends with exactly one present
-      (plat_present or plat_present_rgb) unless the app is quitting; the backend paces the calls (SDL:
-      vsync; a fixed-rate host: its frame timer).
+      (plat_present or plat_present_rgb) unless the app is quitting; the backend paces the calls (a
+      fixed-rate host such as gasm: its frame timer; a windowed one: vsync).
    4. app_exit() (it calls plat_shutdown).
 
    Threading: the core runs on one thread. Audio may be pulled from another thread (audio_render,
@@ -65,8 +66,7 @@ uint32_t plat_pad(int player);
 
 /* ---- time ---- */
 /* Milliseconds since start. The game advances in whole 16 ms ticks of this clock (clock.h), so a
-   reproducible backend returns a virtual clock stepped at each present (SDL: OPENRF_FIXED_STEP=1 adds
-   16 ms per present). */
+   reproducible backend returns a virtual clock stepped at each present (gasm: 16 ms per present). */
 uint64_t plat_ticks_ms(void);
 
 /* ---- audio ---- */

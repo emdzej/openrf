@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the macOS app icon (.icns) from the site's favicon (the skull sprite), nearest-neighbour scaled.
-# Used by CMake (Return Fire.app) and tools/package-gasm.sh (Return Fire (gasm).app). Needs macOS iconutil.
+# Used by tools/package-gasm.sh (Return Fire (gasm).app). Needs macOS iconutil.
 #   tools/make-icns.sh <out.icns>
 set -euo pipefail
 OUT=${1:?usage: make-icns.sh <out.icns>}

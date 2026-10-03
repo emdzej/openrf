@@ -1,10 +1,11 @@
 # Portable core
 
 OpenRF is split into a **portable core** (everything in `src/`, `src/render/` and `src/game/` except the
-backends) and **platform backends**. The core includes no platform headers: CMake builds it as the
-`openrf_core` object library without SDL on the include path, so a platform dependency cannot creep in.
-Backends: SDL3 (the macOS app) and [gasm](https://github.com/emdzej/gasm) (`openrf.wasm`, a wasm module
-driven by a host at a fixed frame rate, with no filesystem; see [Running on gasm](/guide/gasm)).
+backends) and **platform backends**. The core includes no platform headers: the native CMake build
+compiles it as the `openrf_core` object library with no platform library at all, so a platform
+dependency cannot creep in. The game's backend is [gasm](https://github.com/emdzej/gasm) (`openrf.wasm`,
+a wasm module driven by a host at a fixed frame rate, with no filesystem; see
+[Running on gasm](/guide/gasm)); the native build has only the file backends the headless tests use.
 
 | File | Role |
 |---|---|
@@ -13,8 +14,7 @@ driven by a host at a fixed frame rate, with no filesystem; see [Running on gasm
 | `src/vfs.h`, `src/vfs.c` | File layer and the ISO 9660 disc-image reader |
 | `src/audio.h`, `src/audio.c` | One 44100 Hz stereo mixer: music, movie PCM, sound effects |
 | `src/input.c`, `src/keys.h` | Keyboard and pad mapping onto the game's input word |
-| `src/platform_sdl.c` | SDL3 backend and `main()` |
-| `src/vfs_host.c`, `src/storage_file.c` | POSIX file backends (SDL build and tests) |
+| `src/vfs_host.c`, `src/storage_file.c` | POSIX file backends (the native tests) |
 | `src/platform_gasm.c` | gasm backend and the module's exports (`gasm_init`, `gasm_frame`, `gasm_exit`) |
 
 ## Frame-driven app loop
@@ -34,7 +34,7 @@ void app_exit(void);
 A step returns `STEP_FRAME` (it presented a frame), `STEP_AGAIN` (it changed state without presenting)
 or `STEP_DONE` (finished; the owner moves on). `app_frame` polls, steps, and repeats until a step
 presents. Because every step starts after a poll, just like every iteration of the old loops did, the
-number and order of presents and clock reads are unchanged: with `OPENRF_FIXED_STEP=1` the frames are
+number and order of presents and clock reads are unchanged: on a fixed 16 ms clock the frames are
 byte-identical to the blocking version. The only difference is an extra poll at some state changes
 (for example between a still and the next movie), which consumes edge-triggered input the same way the
 next loop's first poll did.
@@ -71,8 +71,8 @@ disc-relative and case-insensitive. One source is mounted at a time:
   the primary volume descriptor. `vfs_mount_path` backs it with a file (`.iso`, `.bin`, or a `.cue` whose
   `FILE` line names the image); a gasm backend backs it with `asset_read_at`.
 
-Reads must be safe from the audio thread (music streams from `SOUND/SCORE.WAV` while the main thread loads
-levels), so sources read positionally (`pread`) and the ISO reader keeps no shared cursor.
+Sources read positionally (`pread`, `asset_read_at`) and the ISO reader keeps no shared cursor, so a
+backend may pull audio (music streams from `SOUND/SCORE.WAV`) on another thread than the one loading levels.
 
 ## Audio
 
@@ -85,11 +85,9 @@ levels), so sources read positionally (`pread`) and the ISO reader keeps no shar
 - **sound effects**: `sfx_render`, the port of the original software mixer (44100 Hz S16 stereo, the
   DirectSound primary format), unchanged.
 
-The SDL backend pulls it from one audio stream callback, with the stream lock as `plat_audio_lock`. A
-fixed-rate backend calls it once per frame for `audio_frames_for_frame(num, den)` frames (the fraction is
-carried, e.g. 735 per frame at 60 Hz, 705 or 706 at 62.5 Hz). Before, SDL mixed separate streams and
-resampled the movie audio itself, so movie sound differs slightly in resampling detail; music and SFX
-samples are the same.
+A fixed-rate backend such as gasm calls it once per frame for `audio_frames_for_frame(num, den)` frames
+(the fraction is carried, e.g. 735 per frame at 60 Hz, 705 or 706 at 62.5 Hz); a backend that pulls it from
+an audio thread takes `plat_audio_lock` around it.
 
 ## The gasm backend
 
@@ -104,21 +102,22 @@ samples are the same.
   the runner) calls `app_exit`.
 - **Video**: the 640x480 8-bit framebuffer goes through its palette into RGBA for `video_present`; movie
   frames are presented at their own 320x240 (the runner scales both to the same 4:3 output).
-- **Time**: `plat_ticks_ms` is 16 ms per presented frame, exactly the SDL build's `OPENRF_FIXED_STEP=1`
-  clock, so both builds produce the same frames at the same frame number. Nothing reads the runner's
-  clock, and the mixer runs on the frame, so movies (slaved to the audio played) are reproducible too.
-- **Input**: `input_pad(0..3)` read at each `plat_poll` (stable within a frame; the "any button" edge
-  fires at the first poll of the frame that sees a new button). `plat_key_down` is always false.
+- **Title**: the custom section `gasm.title` names the window and tab "Return Fire" (gasm 0.6.0; older
+  runners ignore it).
+- **Time**: `plat_ticks_ms` is 16 ms per presented frame, so frame N is always game time 16·(N−1) ms.
+  Nothing reads the runner's clock, and the mixer runs on the frame, so movies (slaved to the audio
+  played) are reproducible too.
+- **Input**: the raw keyboard (gasm 0.5.0: `input_mode(KEYS_RAW)`, `key_state` mapped onto `keys.h`,
+  `key_events` for the "any key" edge), so `input.c`'s original bindings apply; gamepads as
+  `input_pad(0..3)`. Both are read at the first `plat_poll` of a frame and stable within it.
 - **Data**: the asset `cd` (or `rom`) as a disc image through `vfs_mount_image` over `asset_read_at`,
   else the disc's files as assets named by their paths (`--asset-dir`): names are tried as spelled and
-  upper-cased. The ABI cannot enumerate assets, so `vfs_list` in that mode probes the map names the
-  viewer looks for.
+  upper-cased. `vfs_list` in that mode probes the map names the viewer looks for.
 - **Storage**: `gasm:storage` get/set, key `RFire_HS`.
 
 ## Storage and input
 
 High scores (`highscore.c`, the original's `RFire_HS` format) go through `plat_storage_*` with the key
-`RFire_HS`; the SDL build keeps the file in `~/Library/Application Support/Return Fire/`, the gasm build in the
-runner's storage. Pads are
-mapped in `input.c` ([Controls](/guide/controls)): pad 1 is player 1, pad 2 player 2; the SDL backend
-feeds real gamepads through the same path.
+`RFire_HS`: the gasm build keeps it in the runner's storage, the native tests in a file under
+`~/Library/Application Support/Return Fire/` (`OPENRF_HS` overrides). Pads are mapped in `input.c`
+([Controls](/guide/controls)): pad 1 is player 1, pad 2 player 2.

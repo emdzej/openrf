@@ -3,10 +3,10 @@
 The tests exercise the real engine code headlessly against the original data, so they need
 the game data in `./cd` (they cannot run in CI, which only compiles them). `OPENRF_DATA=<folder or
 image>` points them (and `render_test`) elsewhere, e.g. at the `.cue`, to check the disc-image reader:
-the output must be identical.
+the output must be identical. They build natively (macOS or Linux, no libraries needed):
 
 ```sh
-cmake --build build -j
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 for t in sim_test combat_test sfx_test ai_test rules_test twoplayer_test; do ./build/$t > /dev/null && echo "$t ok"; done
 python3 tools/render_cmp.py        # renderer vs. the Python reference: expect 0 mismatches
 ```

@@ -27,9 +27,7 @@ Global keys:
 | F3 | Start a two-player game (title screen) |
 | 1–9 / Shift + 1–9 | Start the first 1P / 2P map of a difficulty level (title screen) |
 | Alt + 3 | Swap sides (exchange the two keyboard layouts) |
-| Esc | Leave the level |
-| Alt + Enter | Toggle fullscreen |
-| M | Mute / unmute the game |
+| Esc | Leave the level (hold it for a second to quit) |
 
 ## Gamepads
 
@@ -60,7 +58,7 @@ PlayStation pad circle, cross, triangle, square.
 
 The map viewer takes the d-pad to scroll and L / R to change map.
 
-The [gasm](./gasm) build and the [browser player](/play/){target="_self"} read the keyboard the same way
-(the keys above), and gasm's virtual pads 0 and 1 are gamepads 1 and 2 here, with the same button bits.
-Fullscreen and mute are the runner's there (Alt + Enter and M are the macOS app's), and holding Esc for a
-second quits.
+The game reads the keyboard itself (the keys above) on every [gasm](./gasm) runner and in the
+[browser player](/play/){target="_self"}; gasm's virtual pads 0 and 1 are gamepads 1 and 2 here, with the
+same button bits. Fullscreen and mute belong to the runner (`gasm-run --mute`; in the browser, the
+buttons under the picture), and holding Esc for a second quits.

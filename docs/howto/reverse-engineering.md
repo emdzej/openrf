@@ -38,8 +38,8 @@ to work on OpenRF you need your own copy.
 - Python tools read the executable at run time through `tools/rfexe.py` (`Exe`, `tile_table()`,
   `obj_table()`; lookup `$OPENRF_EXE`, `cd/RFIRE.BIN`, `rfire_game.exe`) instead of embedding copies.
 - Verifying a change is behaviour-neutral: the headless tests, `python3 tools/render_cmp.py`, and
-  `OPENRF_FIXED_STEP=1 OPENRF_MUTE=1 OPENRF_SHOT=... ` screenshots (fixed 16 ms step, so frames are
-  reproducible) compared with `cmp` before and after.
+  `gasm-run --headless` hashes and screenshots (fixed 16 ms step, so frames are reproducible) compared
+  before and after.
 - Findings go into the [internals docs](/internals/) with exact layouts and addresses.
 - Every subsystem gets a headless test ([Run the tests](./tests)); the renderer is checked
   pixel-for-pixel against a Python reference implementation (`tools/view.py`).

@@ -4,7 +4,7 @@
    - the movie PCM channel (.STM soundtracks, 22050 Hz, resampled),
    - the sound-effect mixer (sfx_render, already 44100 Hz S16 stereo like the original's DirectSound
      primary buffer).
-   The backend pulls it: from an audio thread (SDL) under plat_audio_lock, or once per frame for
+   The backend pulls it: from an audio thread under plat_audio_lock, or once per frame for
    audio_frames_for_frame() frames (fixed-rate hosts such as gasm). */
 #pragma once
 #include <stdbool.h>

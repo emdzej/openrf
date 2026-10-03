@@ -93,3 +93,5 @@ tbody tr:nth-child(odd) { background: rgba(38, 42, 27, .5); }
 
 [hidden] { display: none !important; }
 @media (max-width: 640px) { .bar nav a:not([aria-current]):not(:last-child) { display: none; } }
+#view-controls { display: inline-flex; gap: .4rem; align-items: center; }
+#view-controls select { padding: .3rem .4rem; font-size: .85rem; }

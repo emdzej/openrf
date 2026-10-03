@@ -1,25 +1,33 @@
 # Debug options & screenshots
 
-Environment variables understood by OpenRF:
+The game runs on gasm; debug options are launch parameters (`gasm-run --param name=value`, or URL query
+parameters on the play page):
+
+| Parameter | Effect |
+|---|---|
+| `demo=<mode>` | Scripted input for unattended runs: `1` (drive), `fire`, `jeep`, `msv`, `heli`, `turret`, `drone`, `sub`, `rules`, `win`; two-player: `2p`, `2pheli`, `2pwin`, `2pspectate` (with `play2=1`) |
+| `sfx_log=1` | Log sound-effect instances and voices |
+| `cam_h=<n>` | Driving camera height (0 = 1.0× zoom) |
+| `p1=<name>`, `p2=<name>` | Player names for the high scores |
+
+gasm-run's own options do the rest: `--headless N` runs N frames without a window or sound and prints
+hashes of the video and audio, `--screenshot <png>` saves the last frame, `--mute` silences a windowed run,
+`--input` scripts pads and keys ([Running on gasm](/guide/gasm#headless-runs-and-checks)). The clock is
+16 ms per frame, so runs are reproducible: frame N shows the game at 16 × (N − 1) ms.
+
+Example — the screenshot of a tank firing used on this site (11000 ms = frame 689):
+
+```sh
+gasm-run build-gasm/openrf.wasm --asset-dir cd --headless 689 --screenshot shot.png \
+  --param skip_intro=1 --param play=1 --param demo=fire
+```
+
+`tools/screenshots.sh` regenerates every screenshot in `docs/public/screenshots/` that way, with the
+released `gasm-run` (data from `./cd`, or `OPENRF_DATA=<folder or image>`).
+
+The native build (tests only) reads:
 
 | Variable | Effect |
 |---|---|
-| `OPENRF_SHOT=<file.bmp>` | Save the frame shown at `OPENRF_SHOT_MS` (default 1500 ms) and quit |
-| `OPENRF_SHOT_MS=<ms>` | When to take the screenshot |
-| `OPENRF_DEMO=<mode>` | Scripted input for unattended runs: `1` (drive), `fire`, `jeep`, `msv`, `heli`, `turret`, `drone`, `sub`, `rules`, `win`; two-player: `2p`, `2pheli`, `2pwin`, `2pspectate` (with `--play2`) |
-| `OPENRF_MUTE=1` | Silence all audio output (the game still mixes normally) |
-| `OPENRF_FIXED_STEP=1` | Replace the wall clock with a virtual one (16 ms per presented frame), so a run and its `OPENRF_SHOT` frame are reproducible (compare builds with `cmp`) |
-| `OPENRF_SFX_LOG=1` | Log sound-effect instances and voices |
-| `OPENRF_CAM_H=<n>` | Driving camera height (0 = 1.0× zoom) |
-| `OPENRF_HS=<file>` | High-score file (default `~/Library/Application Support/Return Fire/RFire_HS`) |
-| `OPENRF_DATA=<folder or image>` | Data for the tests and `render_test` (default `./cd`); the app takes it as its first argument |
-
-Example — the screenshot of a tank firing used on this site:
-
-```sh
-OPENRF_DEMO=fire OPENRF_SHOT=/tmp/shot.bmp OPENRF_SHOT_MS=11000 \
-  "build/Return Fire.app/Contents/MacOS/Return Fire" cd --skip-intro --play
-sips -s format png /tmp/shot.bmp --out shot.png
-```
-
-`tools/screenshots.sh` regenerates every screenshot in `docs/public/screenshots/`.
+| `OPENRF_DATA=<folder or image>` | Data for the tests and `render_test` (default `./cd`) |
+| `OPENRF_HS=<file>` | High-score file of `rules_test` / `twoplayer_test` (default `~/Library/Application Support/Return Fire/RFire_HS`) |

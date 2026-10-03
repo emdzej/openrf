@@ -1,25 +1,22 @@
 cmake_minimum_required(VERSION 3.24)
-if(NOT CMAKE_OSX_ARCHITECTURES)
-  set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Target architectures (use \"arm64;x86_64\" for universal)")
-endif()
-set(CMAKE_OSX_DEPLOYMENT_TARGET 11.0 CACHE STRING "Minimum macOS version")
 project(OpenRF VERSION 0.3.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 
-# The portable core: everything except the host backends. Built without SDL (no include path, no
-# library), so a platform dependency can't creep in; a gasm build compiles the same file list.
+# The portable core: everything except the host backends. The native build has no platform library at
+# all (tests and tools only); the game itself is the gasm build of the same file list.
 file(GLOB CORE_SRC src/*.c src/render/*.c src/game/*.c)
-set(HOST_SRC src/platform_sdl.c src/vfs_host.c src/storage_file.c)
+set(HOST_SRC src/vfs_host.c src/storage_file.c)
 foreach(f ${HOST_SRC} src/platform_gasm.c)
   list(REMOVE_ITEM CORE_SRC "${CMAKE_SOURCE_DIR}/${f}")
 endforeach()
 
-# Platform backend: sdl (default: the macOS app + tests) or gasm (openrf.wasm, a gasm guest; configure with
-# gasm's C SDK toolchain, see docs/guide/gasm.md):
+# Platform: native (the headless tests and render_test, against the host filesystem) or gasm (openrf.wasm,
+# a gasm guest; configure with gasm's C SDK toolchain, see docs/guide/gasm.md):
 #   cmake -S . -B build-gasm -DOPENRF_PLATFORM=gasm -DCMAKE_BUILD_TYPE=Release \
 #     -DCMAKE_TOOLCHAIN_FILE=$GASM/sdk/c/cmake/gasm-toolchain.cmake [-DWASI_SDK_PREFIX=<wasi-sdk>]
-set(OPENRF_PLATFORM sdl CACHE STRING "Platform backend: sdl or gasm")
-set_property(CACHE OPENRF_PLATFORM PROPERTY STRINGS sdl gasm)
+# (tools/fetch-gasm-sdk.sh fetches the released SDK and wasi-sdk into .deps/)
+set(OPENRF_PLATFORM native CACHE STRING "Platform: native (tests) or gasm (the game)")
+set_property(CACHE OPENRF_PLATFORM PROPERTY STRINGS native gasm)
 if(OPENRF_PLATFORM STREQUAL "gasm")
   include(Gasm)   # from the gasm toolchain file's module path
   # -O2: ~300 KB and ~20% faster than -Oz (~250 KB); -O3 is larger and not measurably faster.
@@ -32,54 +29,13 @@ if(OPENRF_PLATFORM STREQUAL "gasm")
   return()
 endif()
 
-# SDL3: system package by default; OPENRF_BUNDLED_SDL=ON builds it from source and links it
-# statically (used for universal release builds, so the .app needs no external libraries).
-option(OPENRF_BUNDLED_SDL "Build SDL3 from source and link statically" OFF)
-if(OPENRF_BUNDLED_SDL)
-  include(FetchContent)
-  set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-  set(SDL_STATIC ON CACHE BOOL "" FORCE)
-  set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-  FetchContent_Declare(SDL3 GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-                           GIT_TAG release-3.4.16 GIT_SHALLOW TRUE)
-  FetchContent_MakeAvailable(SDL3)
-else()
-  find_package(SDL3 REQUIRED CONFIG)
+if(NOT APPLE)
+  link_libraries(m)   # libm is separate from libc on Linux
 endif()
+
+# The whole core compiles natively too (no platform dependency can creep in).
 add_library(openrf_core OBJECT ${CORE_SRC})
 target_compile_options(openrf_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
-# SDL3 backend + host filesystem backends (vfs_host.c, storage_file.c: POSIX).
-add_executable(openrf MACOSX_BUNDLE ${HOST_SRC})
-target_compile_options(openrf PRIVATE -Wall -Wextra -Wno-unused-parameter)
-target_link_libraries(openrf PRIVATE openrf_core SDL3::SDL3)
-# Point the bundle at the extracted CD (Contents/Resources/data -> ./cd) so the app runs from anywhere.
-if(EXISTS "${CMAKE_SOURCE_DIR}/cd")
-  add_custom_command(TARGET openrf POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:openrf>/Resources"
-    COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_SOURCE_DIR}/cd" "$<TARGET_BUNDLE_CONTENT_DIR:openrf>/Resources/data"
-    VERBATIM)
-endif()
-# App icon: the site's skull favicon, scaled up (tools/make-icns.sh; skipped without iconutil/python3).
-find_program(ICONUTIL iconutil)
-find_program(PYTHON3 python3)
-if(APPLE AND ICONUTIL AND PYTHON3)
-  set(OPENRF_ICNS "${CMAKE_BINARY_DIR}/openrf.icns")
-  add_custom_command(OUTPUT "${OPENRF_ICNS}"
-    COMMAND "${CMAKE_SOURCE_DIR}/tools/make-icns.sh" "${OPENRF_ICNS}"
-    DEPENDS "${CMAKE_SOURCE_DIR}/docs/public/favicon.png" "${CMAKE_SOURCE_DIR}/tools/icon.py"
-            "${CMAKE_SOURCE_DIR}/tools/make-icns.sh"
-    VERBATIM)
-  target_sources(openrf PRIVATE "${OPENRF_ICNS}")
-  set_source_files_properties("${OPENRF_ICNS}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-  set_target_properties(openrf PROPERTIES MACOSX_BUNDLE_ICON_FILE openrf.icns)
-endif()
-set_target_properties(openrf PROPERTIES
-  OUTPUT_NAME "Return Fire"
-  MACOSX_BUNDLE_GUI_IDENTIFIER org.openrf.returnfire
-  MACOSX_BUNDLE_BUNDLE_NAME "Return Fire"
-  MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-  MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-  MACOSX_BUNDLE_COPYRIGHT "OpenRF contributors, GPL-3.0. Return Fire is (c) Silent Software.")
 
 # Tests and tools read the data through the file layer (./cd, or OPENRF_DATA=<dir|image>).
 set(VFS_SRC src/vfs.c src/vfs_host.c)

@@ -42,7 +42,12 @@ function native(c) {
 }
 
 const PROFILE = mkdtempSync(join(tmpdir(), 'openrf-play-chrome-'));
-const server = spawn('python3', ['-m', 'http.server', String(PORT)], { cwd: DIST, stdio: 'ignore' });
+// python3 -m http.server listens with a backlog of 5: Chrome fetching gasm-host's modules (lib/*.js, 0.6.0) in
+// parallel got connections reset and the page's module graph failed now and then. Same server, backlog 128.
+const SERVE = `import http.server as h, functools as f
+class S(h.ThreadingHTTPServer): request_queue_size = 128
+S(('', ${PORT}), f.partial(h.SimpleHTTPRequestHandler, directory='.')).serve_forever()`;
+const server = spawn('python3', ['-c', SERVE], { cwd: DIST, stdio: 'ignore' });
 const chromeArgs = ['--headless=new', `--remote-debugging-port=${DEBUG}`, `--user-data-dir=${PROFILE}`,
   '--autoplay-policy=no-user-gesture-required', 'about:blank'];
 if (process.env.CI) chromeArgs.unshift('--no-sandbox');
@@ -85,13 +90,23 @@ async function cdp() {
   };
   const open = async (url) => {
     await send('Page.navigate', { url });
-    await until('document.readyState === "complete" && !!globalThis.__openrfReady', 20000);
+    const t0 = Date.now();
+    try {
+      await until('document.readyState === "complete" && !!globalThis.__openrfReady', 20000);
+    } catch (e) {   // say where it stalled, and whether it was only slow
+      const state = await evaluate('JSON.stringify({ ready: document.readyState, play: !!globalThis.openrfPlay, url: location.href })');
+      try {
+        await until('document.readyState === "complete" && !!globalThis.__openrfReady', 40000);
+        console.log(`      (slow page load: ${((Date.now() - t0) / 1000).toFixed(1)} s; at 20 s ${state})`);
+      } catch { throw new Error(`${e.message}\n  page at 20 s: ${state}`); }
+    }
   };
   return { send, evaluate, until, setFiles, open, logs };
 }
 
+/** The frame on screen at its own size (play.js keeps it; the canvas is WebGL at display size). */
 async function saveCanvas(page, file) {
-  const url = await page.evaluate('document.getElementById("screen").toDataURL("image/png")');
+  const url = await page.evaluate('globalThis.__openrfFramePng()');
   writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));
 }
 
@@ -178,7 +193,7 @@ try {
   await page.until('/frames\\/s/.test(document.getElementById("status").textContent)', 20000);
   await sleep(2500);
   await saveCanvas(page, join(OUT, 'live-title.png'));
-  const canvasUrl = () => page.evaluate('document.getElementById("screen").toDataURL("image/png")');
+  const canvasUrl = () => page.evaluate('globalThis.__openrfFramePng()');
   const title = await canvasUrl();
   const key = (type) => page.send('Input.dispatchKeyEvent', { type, code: 'F2', key: 'F2', windowsVirtualKeyCode: 113 });
   await key('keyDown'); await sleep(300); await key('keyUp');

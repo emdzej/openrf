@@ -1,8 +1,8 @@
 /* High-score table RFire_HS (RecordHighScore 0x42d8b0, HighScoresDlgProc 0x42ea20): 0x1c-byte header
    {u32 0x1c, "rfhs", u32 n1P, u32 0x48, u32 n2P, u32 0x50}, 1-player records {u16 level (0x7f = custom map),
    char map[33], char player[33], u32 ms} sorted by level, then the 2-player records. Byte i of the file is
-   stored as (plain ^ 0x5a) + "retufire"[i & 7]. Kept under the storage key RFire_HS (plat_storage_*: on the
-   SDL build ~/Library/Application Support/Return Fire/RFire_HS). */
+   stored as (plain ^ 0x5a) + "retufire"[i & 7]. Kept under the storage key RFire_HS (plat_storage_*: gasm:storage
+   on gasm, a file for the tests). */
 #include "endgame.h"
 #include "exe.h"
 #include "platform.h"

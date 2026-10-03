@@ -1,6 +1,6 @@
 # Extract the CD image
 
-OpenRF can read a `.cue`/`.bin` or `.iso` image directly ([Game data](/guide/game-data)), so
+OpenRF can read a raw `.bin` (of a `.bin`/`.cue` pair) or an `.iso` image directly ([Game data](/guide/game-data)), so
 extracting is optional. It is useful for development (the tests, `tools/*.py` and the reference
 renderer read `./cd`) or to look at the files. To use an image as a folder without copying it
 (`gasm-run --asset-dir`, or the [browser player](/play/){target="_self"}), [mount it](#mount-it).

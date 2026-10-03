@@ -14,7 +14,7 @@ security model, no emojis on the site, tags without `v`).
 
 **OpenRF** (https://github.com/emdzej/openrf, https://openrf.emdzej.pl) is a faithful
 reimplementation of the 1996 game Return Fire in C11. It is being ported to run as a gasm
-guest (`openrf.wasm`, built with gasm's C SDK) next to its existing SDL build. It is a
+guest (`openrf.wasm`, built with gasm's C SDK) next to its SDL build of the time (since removed: gasm is now its only platform). It is a
 software-rendered game (no `gasm:gfx`): it presents 640×480 RGBA via `video_present`, pushes
 44.1 kHz stereo `f32` audio every frame, runs at `set_frame_rate(62.5)` (one original 16 ms tick
 per frame), uses up to two pads, and `gasm:storage` for high scores. Later it will use
