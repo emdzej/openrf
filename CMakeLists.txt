@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(OpenRF VERSION 0.3.0 LANGUAGES C)
+project(OpenRF VERSION 0.4.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 
 # The portable core: everything except the host backends. The native build has no platform library at
