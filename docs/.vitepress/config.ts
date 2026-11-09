@@ -44,6 +44,7 @@ export default defineConfig({
             { text: "Vehicles", link: "/guide/vehicles" },
             { text: "Controls", link: "/guide/controls" },
             { text: "Running on gasm", link: "/guide/gasm" },
+            { text: "How Return Fire works", link: "/guide/theory" },
             { text: "Troubleshooting", link: "/guide/troubleshooting" },
           ],
         },

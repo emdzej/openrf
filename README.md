@@ -123,7 +123,8 @@ title / launch in the bunker, SELECT = swap sides, START+SELECT = Esc (see `docs
   gasm backend for the contract in `src/platform.h`, `platform_gasm.c` (the only file that includes `gasm.h`);
   `vfs_host.c` / `storage_file.c` serve the native tests. Original function addresses are cited in comments.
 - `tools/` — Python decoders/reference renderers for each format.
-- `docs/` — reverse-engineering notes: `car.md`, `rfm.md`, `stm.md`, `architecture.md`, …
+- `docs/` — reverse-engineering notes: `car.md`, `rfm.md`, `stm.md`, `architecture.md`, …; the theory of
+  operation, [How Return Fire works](https://openrf.emdzej.pl/guide/theory) (`docs/guide/theory.md`).
 - `re/` — Ghidra scripts and decompiler dumps (local reference only).
 
 ## License
