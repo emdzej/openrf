@@ -30,6 +30,7 @@ export default defineConfig({
       { text: "Gallery", link: "/gallery" },
       // A static app in docs/public/play/: target _self makes it a full page load, not a VitePress route.
       { text: "Play", link: "/play/", target: "_self" },
+      { text: "ENCORE", link: "https://encore.emdzej.pl" },
     ],
 
     sidebar: {
@@ -96,7 +97,7 @@ export default defineConfig({
 
     footer: {
       message:
-        "OpenRF is released under the GPL-3.0. Return Fire is © 1995–1996 Silent Software / Prolific. OpenRF contains no original code or assets. The cross-platform and browser builds run on <a href=\"https://gasm.emdzej.pl\">gasm</a>. <a href=\"/credits\">Credits</a>",
+        "Part of <a href=\"https://encore.emdzej.pl\">ENCORE</a> — Engines of Nostalgia, Clean Open REimplementations. OpenRF is released under the GPL-3.0. Return Fire is © 1995–1996 Silent Software / Prolific. OpenRF contains no original code or assets. The cross-platform and browser builds run on <a href=\"https://gasm.emdzej.pl\">gasm</a>. <a href=\"/credits\">Credits</a>",
     },
   },
 });
